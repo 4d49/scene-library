@@ -1,0 +1,33 @@
+# Scene Library Tool
+
+![](https://github.com/4d49/scene-library/assets/8208165/b1546bc6-2b8a-4bdc-b178-8cefc961a6ef)
+
+# Features:
+
+> **Important**
+> Currently only 3D scenes are supported. Support for 2D scenes will be implemented possibly later.
+
+- Drag and drop.
+- Quickly open a scene for editing.
+- Automatic generation of thumbnails and their caching.
+- User friendly tabs for creating collections.
+- Option to save the library as a file.
+- Quick search for scenes.
+- Toggle asset display view mode.
+
+# Installation:
+
+1. Clone this repository to `addons` folder.
+2. Enable `Scene Library` in Plugins.
+4. Done!
+
+# Usage:
+
+Create a new tab and drag and drop a scene file from `FileSystem` dock. Profit!
+
+# License
+
+Copyright (c) 2023 Mansur Isaev and contributors
+
+Unless otherwise specified, files in this repository are licensed under the
+MIT license. See [LICENSE.md](LICENSE.md) for more information.
