@@ -1265,10 +1265,10 @@ func _on_item_list_item_activated(index: int) -> void:
 
 
 func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
-	if display_mode == DisplayMode.THUMBNAILS:
-		# TODO: Add a feature to resize icons.
-		const ICON_SIZE = 64
+	# TODO: Add a feature to resize icons.
+	const ICON_SIZE = 64
 
+	if display_mode == DisplayMode.THUMBNAILS:
 		_item_list.set_max_columns(0)
 		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
 		_item_list.set_max_text_lines(2)
@@ -1282,8 +1282,8 @@ func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
 		_item_list.set_max_columns(0)
 		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
 		_item_list.set_max_text_lines(1)
+		_item_list.set_fixed_column_width(int(ICON_SIZE * 3.5))
 		_item_list.set_fixed_icon_size(Vector2i(THUMB_SIZE_SMALL, THUMB_SIZE_SMALL))
-		_item_list.set_fixed_column_width(0)
 
 		for i in _item_list.get_item_count():
 			var asset : Dictionary = _item_list.get_item_metadata(i)
