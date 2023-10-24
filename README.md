@@ -1,5 +1,8 @@
 # Scene Library Tool
 
+> **Warning**
+> The add-on is still under development and needs testing!
+
 ![](https://github.com/4d49/scene-library/assets/8208165/b1546bc6-2b8a-4bdc-b178-8cefc961a6ef)
 
 # Features:
