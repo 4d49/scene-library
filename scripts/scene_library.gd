@@ -229,7 +229,6 @@ func _enter_tree() -> void:
 	_main_container = PanelContainer.new()
 	_main_container.set_mouse_filter(Control.MOUSE_FILTER_IGNORE)
 	_main_container.set_v_size_flags(Control.SIZE_EXPAND_FILL)
-	_main_container.add_theme_stylebox_override(&"panel", get_theme_stylebox(&"panel", &"TabContainerOdd"))
 	_main_container.add_theme_stylebox_override(&"panel", get_theme_stylebox(&"DebuggerPanel", &"EditorStyles"))
 	_main_vbox.add_child(_main_container)
 
