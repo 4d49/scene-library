@@ -558,9 +558,6 @@ func update_tabs() -> void:
 			_collec_tab_bar.set_tab_disabled(index, false)
 
 			var collec: Array[Dictionary] = _curr_lib[c_name]
-			# BUG: https://github.com/godotengine/godot/issues/81647
-			# Fixes bug with comparison of empty arrays.
-			_collec_tab_bar.set_tab_metadata(index, null)
 			_collec_tab_bar.set_tab_metadata(index, collec)
 
 			index += 1
@@ -571,7 +568,6 @@ func update_tabs() -> void:
 		_collec_tab_bar.set_tab_title(0, "[null]")
 		_collec_tab_bar.set_tab_disabled(0, true)
 
-		_collec_tab_bar.set_tab_metadata(0, null)
 		_collec_tab_bar.set_tab_metadata(0, NULL_COLLECTION)
 
 	# WARNING: Metadata must always be of type Array[Dictionary]!
