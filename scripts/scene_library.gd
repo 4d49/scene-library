@@ -5,6 +5,33 @@ extends MarginContainer
 
 
 class AssetItemList extends ItemList:
+	func _create_drag_preview(files: PackedStringArray) -> Control:
+		const MAX_ROWS = 6
+
+		var vbox := VBoxContainer.new()
+		var num_rows := mini(files.size(), MAX_ROWS)
+
+		for i in num_rows:
+			var hbox := HBoxContainer.new()
+			vbox.add_child(hbox)
+
+			var icon := TextureRect.new()
+			icon.set_texture(get_theme_icon(&"File", &"EditorIcons"))
+			icon.set_stretch_mode(TextureRect.STRETCH_KEEP_CENTERED)
+			icon.set_size(Vector2(16.0, 16.0))
+			hbox.add_child(icon)
+
+			var label := Label.new()
+			label.set_text(files[i].get_file().get_basename())
+			hbox.add_child(label)
+
+		if files.size() > num_rows:
+			var label := Label.new()
+			label.set_text("%d more files" % int(files.size() - num_rows))
+			vbox.add_child(label)
+
+		return vbox
+
 	func _get_drag_data(at_position: Vector2) -> Variant:
 		var item: int = get_item_at_position(at_position)
 		if item < 0:
@@ -14,6 +41,8 @@ class AssetItemList extends ItemList:
 		for i in get_selected_items():
 			var asset: Dictionary = get_item_metadata(i)
 			files.push_back(asset["path"])
+
+		set_drag_preview(_create_drag_preview(files))
 
 		return {"type": "files", "files": files}
 
