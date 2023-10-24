@@ -1,5 +1,10 @@
 # Scene Library Tool
 
+Add-on for easy and fast work with scenes as assets. 
+
+> **Important**
+> Only Godot 4.2+ is supported.
+
 > **Warning**
 > The add-on is still under development and needs testing!
 
