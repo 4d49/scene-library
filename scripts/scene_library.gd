@@ -5,14 +5,15 @@ extends MarginContainer
 
 
 class AssetItemList extends ItemList:
-	# TODO: Add a drag and drop feature for multiple objects.
 	func _get_drag_data(at_position: Vector2) -> Variant:
 		var item: int = get_item_at_position(at_position)
 		if item < 0:
 			return null
 
-		var asset: Dictionary = get_item_metadata(item)
-		var files: PackedStringArray = [asset["path"]]
+		var files := PackedStringArray()
+		for i in get_selected_items():
+			var asset: Dictionary = get_item_metadata(i)
+			files.push_back(asset["path"])
 
 		return {"type": "files", "files": files}
 
