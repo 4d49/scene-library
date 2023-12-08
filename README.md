@@ -1,6 +1,6 @@
 # Scene Library Tool
 
-Add-on for easy and fast work with scenes as assets. 
+Add-on for easy and fast work with scenes as assets. Both 3D and 2D scenes are supported
 
 > [!IMPORTANT] 
 > Only Godot 4.2+ is supported.
@@ -11,9 +11,6 @@ Add-on for easy and fast work with scenes as assets.
 ![](https://github.com/4d49/scene-library/assets/8208165/b1546bc6-2b8a-4bdc-b178-8cefc961a6ef)
 
 # Features:
-
-> [!IMPORTANT] 
-> Currently only 3D scenes are supported. Support for 2D scenes will be implemented possibly later.
 
 - Drag and drop.
 - Quickly open a scene for editing.
