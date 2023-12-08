@@ -149,10 +149,12 @@ var _save_dialog: ConfirmationDialog = null
 var _save_timer: Timer = null
 
 # Create thumbnail scene:
-# TODO: Add 2D support.
 var _viewport: SubViewport = null
-var _camera: Camera3D = null
-var _light: DirectionalLight3D = null
+
+var _camera_2d: Camera2D = null
+
+var _camera_3d: Camera3D = null
+var _light_3d: DirectionalLight3D = null
 
 var _asset_display_mode: DisplayMode = DisplayMode.THUMBNAILS
 var _sort_mode: SortMode = SortMode.NAME
@@ -343,12 +345,15 @@ func _enter_tree() -> void:
 	_save_timer.timeout.connect(_on_save_timer_timeout)
 	self.add_child(_save_timer)
 
-	var world := World3D.new()
+	var world_2d := World2D.new()
+
+	var world_3d := World3D.new()
 	# TODO: Add a feature to change Environment.
-	world.set_environment(get_viewport().get_world_3d().get_environment())
+	world_3d.set_environment(get_viewport().get_world_3d().get_environment())
 
 	_viewport = SubViewport.new()
-	_viewport.set_world_3d(world)
+	_viewport.set_world_2d(world_2d)
+	_viewport.set_world_3d(world_3d)
 	_viewport.set_update_mode(SubViewport.UPDATE_DISABLED) # We'll update the frame manually.
 	_viewport.set_debug_draw(Viewport.DEBUG_DRAW_DISABLE_LOD) # This is necessary to avoid visual glitches.
 	_viewport.set_process_mode(Node.PROCESS_MODE_DISABLED) # Needs to disable animations.
@@ -360,19 +365,23 @@ func _enter_tree() -> void:
 	_viewport.set_screen_space_aa(Viewport.SCREEN_SPACE_AA_FXAA)
 	self.add_child(_viewport)
 
-	# TODO: Add a feature to set lighting.
-	_light = DirectionalLight3D.new()
-	_light.set_shadow_mode(DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
-	_light.set_bake_mode(Light3D.BAKE_STATIC)
-	_light.set_shadow(true)
-	_light.basis *= Basis(Vector3.UP, deg_to_rad(45.0))
-	_light.basis *= Basis(Vector3.LEFT, deg_to_rad(65.0))
-	_viewport.add_child(_light)
+	_camera_2d = Camera2D.new()
+	_camera_2d.set_enabled(false)
+	_viewport.add_child(_camera_2d)
 
-	_camera = Camera3D.new()
-	_camera.set_current(true)
-	_camera.set_fov(22.5)
-	_viewport.add_child(_camera)
+	# TODO: Add a feature to set lighting.
+	_light_3d = DirectionalLight3D.new()
+	_light_3d.set_shadow_mode(DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
+	_light_3d.set_bake_mode(Light3D.BAKE_STATIC)
+	_light_3d.set_shadow(true)
+	_light_3d.basis *= Basis(Vector3.UP, deg_to_rad(45.0))
+	_light_3d.basis *= Basis(Vector3.LEFT, deg_to_rad(65.0))
+	_viewport.add_child(_light_3d)
+
+	_camera_3d = Camera3D.new()
+	_camera_3d.set_current(false)
+	_camera_3d.set_fov(22.5)
+	_viewport.add_child(_camera_3d)
 
 	# Multithreading starts here.
 	_mutex = Mutex.new()
@@ -879,30 +888,53 @@ func save_library(path: String) -> void:
 
 
 
+@warning_ignore("unsafe_method_access")
+func _calculate_node_rect(node: Node) -> Rect2:
+	var rect := Rect2()
+	if node is Node2D and node.is_visible():
+		# HACK: This works only in editor.
+		rect = node.get_global_transform() * node.call(&"_edit_get_rect")
 
+	for i: int in node.get_child_count():
+		rect = rect.merge(_calculate_node_rect(node.get_child(i)))
+
+	return rect
+
+@warning_ignore("unsafe_method_access")
 func _calculate_node_aabb(node: Node) -> AABB:
+	var aabb := AABB()
+
 	# NOTE: If the node is not MeshInstance3D, the AABB is not calculated correctly.
 	# The camera may have incorrect distances to objects in the scene.
-	@warning_ignore("unsafe_method_access")
-	var aabb: AABB = node.get_aabb() * node.get_global_transform() if node is MeshInstance3D and node.is_visible() else AABB()
+	if node is MeshInstance3D and node.is_visible():
+		aabb = node.get_aabb() * node.get_global_transform()
 
-	for i in node.get_child_count():
+	for i: int in node.get_child_count():
 		aabb = aabb.merge(_calculate_node_aabb(node.get_child(i)))
 
 	return aabb
 
-func _focus_camera_on_node(node: Node) -> void:
+
+func _focus_camera_on_node_2d(node: Node) -> void:
+	var rect: Rect2 = _calculate_node_rect(node)
+	_camera_2d.set_position(rect.get_center())
+
+	var zoom_ratio: float = THUMB_SIZE / maxf(rect.size.x, rect.size.y)
+	_camera_2d.set_zoom(Vector2(zoom_ratio, zoom_ratio))
+
+func _focus_camera_on_node_3d(node: Node) -> void:
 	var transform := Transform3D.IDENTITY
 	# TODO: Add a feature to configure the rotation of the camera.
 	transform.basis *= Basis(Vector3.UP, deg_to_rad(40.0))
 	transform.basis *= Basis(Vector3.LEFT, deg_to_rad(22.5))
 
 	var aabb: AABB = _calculate_node_aabb(node)
-	var distance: float = aabb.get_longest_axis_size() / tan(deg_to_rad(_camera.get_fov()) * 0.5)
+	var distance: float = aabb.get_longest_axis_size() / tan(deg_to_rad(_camera_3d.get_fov()) * 0.5)
 
 	transform.origin = transform * (Vector3.BACK * distance) + aabb.get_center()
 
-	_camera.set_global_transform(transform.orthonormalized())
+	_camera_3d.set_global_transform(transform.orthonormalized())
+
 
 func _get_thumb_cache_dir() -> String:
 	return ProjectSettings.globalize_path("res://.godot/thumb_cache")
@@ -948,7 +980,16 @@ func _thread_process() -> void:
 			_viewport.call_deferred(&"add_child", instance)
 			semaphore.wait()
 
-			_focus_camera_on_node(instance)
+			if instance is Node2D:
+				_camera_2d.set_enabled(true)
+				_camera_3d.set_current(false)
+
+				_focus_camera_on_node_2d(instance)
+			else:
+				_camera_2d.set_enabled(false)
+				_camera_3d.set_current(true)
+
+				_focus_camera_on_node_3d(instance)
 
 			RenderingServer.frame_pre_draw.connect(preview_frame_started, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
 			semaphore.wait()
