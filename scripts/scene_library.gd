@@ -61,7 +61,7 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_expand_mode(TextureRect.EXPAND_IGNORE_SIZE)
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
-		thumb_rect.set_custom_minimum_size(Vector2i(THUMB_SIZE, THUMB_SIZE))
+		thumb_rect.set_custom_minimum_size(Vector2(192.0, 192.0))
 		thumb_rect.set_texture(asset["thumb"])
 		vbox.add_child(thumb_rect)
 
@@ -118,9 +118,6 @@ enum AssetContextMenu {
 const NULL_LIBRARY: Dictionary = {}
 const NULL_COLLECTION: Array[Dictionary] = []
 
-const THUMB_SIZE = 256
-const THUMB_SIZE_SMALL = 16
-
 # INFO: Required to change parent panel style.
 var _parent_container: PanelContainer = null
 
@@ -148,11 +145,20 @@ var _save_dialog: ConfirmationDialog = null
 
 var _save_timer: Timer = null
 
+var _thumb_size: int = 192
+var _thumb_size_small: int = 16
+
+# INFO: May be required for debugging.
+var _cache_enabled: bool = true
+var _cache_path: String = "res://.godot/thumb_cache"
+
 # Create thumbnail scene:
-# TODO: Add 2D support.
 var _viewport: SubViewport = null
-var _camera: Camera3D = null
-var _light: DirectionalLight3D = null
+
+var _camera_2d: Camera2D = null
+
+var _camera_3d: Camera3D = null
+var _light_3d: DirectionalLight3D = null
 
 var _asset_display_mode: DisplayMode = DisplayMode.THUMBNAILS
 var _sort_mode: SortMode = SortMode.NAME
@@ -194,8 +200,22 @@ func _update_position_new_collection_btn() -> void:
 	_collec_tab_bar.size = Vector2(minf(_collec_tab_bar.size.x, tab_bar_total_width), 0.0)
 	_collec_tab_add.position.x = _collec_tab_bar.size.x
 
+
+static func _def_setting(name: String, value: Variant) -> Variant:
+	if not ProjectSettings.has_setting(name):
+		ProjectSettings.set_setting(name, value)
+
+	ProjectSettings.set_initial_value(name, value)
+	return ProjectSettings.get_setting_with_override(name)
+
 @warning_ignore("narrowing_conversion", "return_value_discarded", "unsafe_method_access")
 func _enter_tree() -> void:
+	_thumb_size = _def_setting("addons/scene_library/thumbnail/size", 192)
+	_thumb_size_small = _def_setting("addons/scene_library/thumbnail/size_small", 16)
+
+	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
+	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
+
 	_parent_container = _get_parent_container()
 
 	self.add_theme_constant_override(&"margin_left", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_LEFT))
@@ -343,36 +363,56 @@ func _enter_tree() -> void:
 	_save_timer.timeout.connect(_on_save_timer_timeout)
 	self.add_child(_save_timer)
 
-	var world := World3D.new()
+	var world_2d := World2D.new()
+
+	var world_3d := World3D.new()
 	# TODO: Add a feature to change Environment.
-	world.set_environment(get_viewport().get_world_3d().get_environment())
+	world_3d.set_environment(get_viewport().get_world_3d().get_environment())
 
 	_viewport = SubViewport.new()
-	_viewport.set_world_3d(world)
+	_viewport.set_world_2d(world_2d)
+	_viewport.set_world_3d(world_3d)
 	_viewport.set_update_mode(SubViewport.UPDATE_DISABLED) # We'll update the frame manually.
 	_viewport.set_debug_draw(Viewport.DEBUG_DRAW_DISABLE_LOD) # This is necessary to avoid visual glitches.
 	_viewport.set_process_mode(Node.PROCESS_MODE_DISABLED) # Needs to disable animations.
-	_viewport.set_size(Vector2i(THUMB_SIZE, THUMB_SIZE))
+	_viewport.set_size(Vector2i(_thumb_size, _thumb_size))
 	_viewport.set_disable_input(true)
 	_viewport.set_transparent_background(true)
-	# TODO: Replace "magic" values with values from ProjectSettings.
-	_viewport.set_msaa_3d(Viewport.MSAA_8X)
-	_viewport.set_screen_space_aa(Viewport.SCREEN_SPACE_AA_FXAA)
+	_viewport.set_physics_object_picking(false)
+	_viewport.set_default_canvas_item_texture_filter(ProjectSettings.get_setting("rendering/textures/canvas_textures/default_texture_filter"))
+	_viewport.set_default_canvas_item_texture_repeat(ProjectSettings.get_setting("rendering/textures/canvas_textures/default_texture_repeat"))
+	_viewport.set_fsr_sharpness(ProjectSettings.get_setting("rendering/scaling_3d/fsr_sharpness"))
+	_viewport.set_msaa_2d(ProjectSettings.get_setting("rendering/anti_aliasing/quality/msaa_2d"))
+	_viewport.set_msaa_3d(ProjectSettings.get_setting("rendering/anti_aliasing/quality/msaa_3d"))
+	_viewport.set_positional_shadow_atlas_16_bits(ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_16_bits"))
+	_viewport.set_positional_shadow_atlas_quadrant_subdiv(0, ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_quadrant_0_subdiv"))
+	_viewport.set_positional_shadow_atlas_quadrant_subdiv(1, ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_quadrant_1_subdiv"))
+	_viewport.set_positional_shadow_atlas_quadrant_subdiv(2, ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_quadrant_2_subdiv"))
+	_viewport.set_positional_shadow_atlas_quadrant_subdiv(3, ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_quadrant_3_subdiv"))
+	_viewport.set_positional_shadow_atlas_size(ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/atlas_size"))
+	_viewport.set_scaling_3d_mode(ProjectSettings.get_setting("rendering/scaling_3d/mode"))
+	_viewport.set_scaling_3d_scale(ProjectSettings.get_setting("rendering/scaling_3d/scale"))
+	_viewport.set_screen_space_aa(ProjectSettings.get_setting("rendering/anti_aliasing/quality/screen_space_aa"))
+	_viewport.set_texture_mipmap_bias(ProjectSettings.get_setting("rendering/textures/default_filters/texture_mipmap_bias"))
 	self.add_child(_viewport)
 
-	# TODO: Add a feature to set lighting.
-	_light = DirectionalLight3D.new()
-	_light.set_shadow_mode(DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
-	_light.set_bake_mode(Light3D.BAKE_STATIC)
-	_light.set_shadow(true)
-	_light.basis *= Basis(Vector3.UP, deg_to_rad(45.0))
-	_light.basis *= Basis(Vector3.LEFT, deg_to_rad(65.0))
-	_viewport.add_child(_light)
+	_camera_2d = Camera2D.new()
+	_camera_2d.set_enabled(false)
+	_viewport.add_child(_camera_2d)
 
-	_camera = Camera3D.new()
-	_camera.set_current(true)
-	_camera.set_fov(22.5)
-	_viewport.add_child(_camera)
+	# TODO: Add a feature to set lighting.
+	_light_3d = DirectionalLight3D.new()
+	_light_3d.set_shadow_mode(DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
+	_light_3d.set_bake_mode(Light3D.BAKE_STATIC)
+	_light_3d.set_shadow(true)
+	_light_3d.basis *= Basis(Vector3.UP, deg_to_rad(45.0))
+	_light_3d.basis *= Basis(Vector3.LEFT, deg_to_rad(65.0))
+	_viewport.add_child(_light_3d)
+
+	_camera_3d = Camera3D.new()
+	_camera_3d.set_current(false)
+	_camera_3d.set_fov(22.5)
+	_viewport.add_child(_camera_3d)
 
 	# Multithreading starts here.
 	_mutex = Mutex.new()
@@ -879,33 +919,56 @@ func save_library(path: String) -> void:
 
 
 
+@warning_ignore("unsafe_method_access")
+func _calculate_node_rect(node: Node) -> Rect2:
+	var rect := Rect2()
+	if node is Node2D and node.is_visible():
+		# HACK: This works only in editor.
+		rect = node.get_global_transform() * node.call(&"_edit_get_rect")
 
+	for i: int in node.get_child_count():
+		rect = rect.merge(_calculate_node_rect(node.get_child(i)))
+
+	return rect
+
+@warning_ignore("unsafe_method_access")
 func _calculate_node_aabb(node: Node) -> AABB:
+	var aabb := AABB()
+
 	# NOTE: If the node is not MeshInstance3D, the AABB is not calculated correctly.
 	# The camera may have incorrect distances to objects in the scene.
-	@warning_ignore("unsafe_method_access")
-	var aabb: AABB = node.get_aabb() * node.get_global_transform() if node is MeshInstance3D and node.is_visible() else AABB()
+	if node is MeshInstance3D and node.is_visible():
+		aabb = node.get_aabb() * node.get_global_transform()
 
-	for i in node.get_child_count():
+	for i: int in node.get_child_count():
 		aabb = aabb.merge(_calculate_node_aabb(node.get_child(i)))
 
 	return aabb
 
-func _focus_camera_on_node(node: Node) -> void:
+
+func _focus_camera_on_node_2d(node: Node) -> void:
+	var rect: Rect2 = _calculate_node_rect(node)
+	_camera_2d.set_position(rect.get_center())
+
+	var zoom_ratio: float = _thumb_size / maxf(rect.size.x, rect.size.y)
+	_camera_2d.set_zoom(Vector2(zoom_ratio, zoom_ratio))
+
+func _focus_camera_on_node_3d(node: Node) -> void:
 	var transform := Transform3D.IDENTITY
 	# TODO: Add a feature to configure the rotation of the camera.
 	transform.basis *= Basis(Vector3.UP, deg_to_rad(40.0))
 	transform.basis *= Basis(Vector3.LEFT, deg_to_rad(22.5))
 
 	var aabb: AABB = _calculate_node_aabb(node)
-	var distance: float = aabb.get_longest_axis_size() / tan(deg_to_rad(_camera.get_fov()) * 0.5)
+	var distance: float = aabb.get_longest_axis_size() / tan(deg_to_rad(_camera_3d.get_fov()) * 0.5)
 
 	transform.origin = transform * (Vector3.BACK * distance) + aabb.get_center()
 
-	_camera.set_global_transform(transform.orthonormalized())
+	_camera_3d.set_global_transform(transform.orthonormalized())
+
 
 func _get_thumb_cache_dir() -> String:
-	return ProjectSettings.globalize_path("res://.godot/thumb_cache")
+	return ProjectSettings.globalize_path(_cache_path)
 
 func _get_thumb_cache_path(path: String) -> String:
 	return _get_thumb_cache_dir().path_join(path.md5_text()) + ".png"
@@ -948,13 +1011,22 @@ func _thread_process() -> void:
 			_viewport.call_deferred(&"add_child", instance)
 			semaphore.wait()
 
-			_focus_camera_on_node(instance)
+			if instance is Node2D:
+				_camera_2d.set_enabled(true)
+				_camera_3d.set_current(false)
+
+				_focus_camera_on_node_2d(instance)
+			else:
+				_camera_2d.set_enabled(false)
+				_camera_3d.set_current(true)
+
+				_focus_camera_on_node_3d(instance)
 
 			RenderingServer.frame_pre_draw.connect(preview_frame_started, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
 			semaphore.wait()
 
 			var image: Image = _viewport.get_texture().get_image()
-			image.resize(THUMB_SIZE, THUMB_SIZE, Image.INTERPOLATE_LANCZOS)
+			image.resize(_thumb_size, _thumb_size, Image.INTERPOLATE_LANCZOS)
 
 			var thumb: Dictionary = item["thumb"]
 
@@ -963,10 +1035,11 @@ func _thread_process() -> void:
 			thumb_large.update(image)
 			semaphore.wait()
 
-			_save_thumb_to_disk(item["id"], image)
+			if _cache_enabled:
+				_save_thumb_to_disk(item["id"], image)
 
 			image = _viewport.get_texture().get_image()
-			image.resize(THUMB_SIZE_SMALL, THUMB_SIZE_SMALL, Image.INTERPOLATE_LANCZOS)
+			image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
 
 			var thumb_small: ImageTexture = thumb["small"]
 			thumb_small.changed.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
@@ -1000,17 +1073,18 @@ func _get_thumbnail(asset: Dictionary) -> Dictionary:
 	_thumbnails[id] = new_thumb
 
 	var cache_path: String = _get_thumb_cache_path(asset["path"])
-	if FileAccess.file_exists(cache_path):
+
+	if _cache_enabled and FileAccess.file_exists(cache_path):
 		var image := Image.load_from_file(cache_path)
 		new_thumb["large"] = ImageTexture.create_from_image(image)
 
-		image.resize(THUMB_SIZE_SMALL, THUMB_SIZE_SMALL, Image.INTERPOLATE_LANCZOS)
+		image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
 		new_thumb["small"] = ImageTexture.create_from_image(image)
 
 	else:
 		# TODO: Add placeholder thumbnail.
-		new_thumb["large"] = ImageTexture.create_from_image(Image.create(THUMB_SIZE, THUMB_SIZE, false, Image.FORMAT_RGBA8))
-		new_thumb["small"] = ImageTexture.create_from_image(Image.create(THUMB_SIZE_SMALL, THUMB_SIZE_SMALL, false, Image.FORMAT_RGBA8))
+		new_thumb["large"] = ImageTexture.create_from_image(Image.create(_thumb_size, _thumb_size, false, Image.FORMAT_RGBA8))
+		new_thumb["small"] = ImageTexture.create_from_image(Image.create(_thumb_size_small, _thumb_size_small, false, Image.FORMAT_RGBA8))
 
 		_queue_update_thumbnail(id)
 
@@ -1308,7 +1382,7 @@ func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
 		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
 		_item_list.set_max_text_lines(1)
 		_item_list.set_fixed_column_width(int(ICON_SIZE * 3.5))
-		_item_list.set_fixed_icon_size(Vector2i(THUMB_SIZE_SMALL, THUMB_SIZE_SMALL))
+		_item_list.set_fixed_icon_size(Vector2i(_thumb_size_small, _thumb_size_small))
 
 		for i in _item_list.get_item_count():
 			var asset: Dictionary = _item_list.get_item_metadata(i)
