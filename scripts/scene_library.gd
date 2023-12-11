@@ -304,7 +304,6 @@ func _enter_tree() -> void:
 	_mode_thumb_btn.set_disabled(true)
 	_mode_thumb_btn.set_tooltip_text("View items as a grid of thumbnails.")
 	_mode_thumb_btn.set_toggle_mode(true)
-	_mode_thumb_btn.set_pressed(true)
 	_mode_thumb_btn.set_button_icon(get_theme_icon(&"FileThumbnail", &"EditorIcons"))
 	_mode_thumb_btn.set_button_group(button_group)
 	_mode_thumb_btn.pressed.connect(set_asset_display_mode.bind(DisplayMode.THUMBNAILS))
@@ -327,14 +326,13 @@ func _enter_tree() -> void:
 	_item_list.set_select_mode(ItemList.SELECT_MULTI)
 	_item_list.set_max_columns(0)
 	_item_list.set_same_column_width(true)
-	_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
-	_item_list.set_fixed_column_width(64 * 3 * 0.5)
-	_item_list.set_max_text_lines(2)
-	_item_list.set_fixed_icon_size(Vector2i(64, 64))
 	_item_list.gui_input.connect(_on_item_list_gui_input)
 	_item_list.item_clicked.connect(_on_item_list_item_clicked)
 	_item_list.item_activated.connect(_on_item_list_item_activated)
 	_content_vbox.add_child(_item_list)
+
+	_asset_display_mode = _def_setting("addons/scene_library/thumbnail/mode", DisplayMode.THUMBNAILS)
+	_update_asset_display_mode(_asset_display_mode)
 
 	_open_dialog = _create_file_dialog(true)
 	_open_dialog.set_title("Open Asset Library")
@@ -416,7 +414,7 @@ func _enter_tree() -> void:
 	collection_changed.connect(update_item_list)
 	collection_changed.connect(_save_timer.start)
 	collection_changed.connect(_emit_unsaved)
-	asset_display_mode_changed.connect(_on_asset_display_mode_changed)
+	asset_display_mode_changed.connect(_update_asset_display_mode)
 
 	load_default_library()
 
@@ -671,7 +669,9 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 	if is_same(_asset_display_mode, display_mode):
 		return
 
+	ProjectSettings.set_setting("addons/scene_library/thumbnail/mode", display_mode)
 	_asset_display_mode = display_mode
+
 	asset_display_mode_changed.emit(display_mode)
 
 func get_asset_display_mode() -> DisplayMode:
@@ -1284,13 +1284,38 @@ func _sort_assets_button_toggled(reverse: bool) -> void:
 	set_sort_mode(SortMode.NAME_REVERSE if reverse else SortMode.NAME)
 
 
-func _update_thumb_icon_size() -> void:
-	if _asset_display_mode == DisplayMode.THUMBNAILS:
+func _update_thumb_icon_size(display_mode: DisplayMode) -> void:
+	if display_mode == DisplayMode.THUMBNAILS:
 		_item_list.set_fixed_column_width(_thumb_grid_icon_size * 1.5)
 		_item_list.set_fixed_icon_size(Vector2i(_thumb_grid_icon_size, _thumb_grid_icon_size))
 	else:
 		_item_list.set_fixed_column_width(0)
 		_item_list.set_fixed_icon_size(Vector2i(_thumb_list_icon_size, _thumb_list_icon_size))
+
+func _update_asset_display_mode(display_mode: DisplayMode) -> void:
+	if display_mode == DisplayMode.THUMBNAILS:
+		_item_list.set_max_columns(0)
+		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
+		_item_list.set_max_text_lines(2)
+
+		for i in _item_list.get_item_count():
+			var asset: Dictionary = _item_list.get_item_metadata(i)
+			_item_list.set_item_icon(i, asset["thumb"])
+
+		_mode_thumb_btn.set_pressed_no_signal(true)
+	else:
+		_item_list.set_max_columns(0)
+		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
+		_item_list.set_max_text_lines(1)
+
+		for i in _item_list.get_item_count():
+			var asset: Dictionary = _item_list.get_item_metadata(i)
+			_item_list.set_item_icon(i, asset["thumb_small"])
+
+		_mode_list_btn.set_pressed_no_signal(true)
+
+	_update_thumb_icon_size(display_mode)
+
 
 func _set_thumb_grid_icon_size(icon_size: int) -> void:
 	icon_size = clampi(icon_size, THUMB_LIST_SIZE, THUMB_GRID_SIZE)
@@ -1300,7 +1325,7 @@ func _set_thumb_grid_icon_size(icon_size: int) -> void:
 	ProjectSettings.set_setting("addons/scene_library/thumbnail/grid_size", icon_size)
 	_thumb_grid_icon_size = icon_size
 
-	_update_thumb_icon_size()
+	_update_thumb_icon_size(_asset_display_mode)
 
 func _set_thumb_list_icon_size(icon_size: int) -> void:
 	const ICON_MIN_SIZE = 16
@@ -1312,7 +1337,7 @@ func _set_thumb_list_icon_size(icon_size: int) -> void:
 	ProjectSettings.set_setting("addons/scene_library/thumbnail/list_size", icon_size)
 	_thumb_list_icon_size = icon_size
 
-	_update_thumb_icon_size()
+	_update_thumb_icon_size(_asset_display_mode)
 
 
 func _on_item_list_gui_input(event: InputEvent) -> void:
@@ -1406,27 +1431,6 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 func _on_item_list_item_activated(index: int) -> void:
 	var asset: Dictionary = _item_list.get_item_metadata(index)
 	open_asset_request.emit(asset["path"])
-
-
-func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
-	if display_mode == DisplayMode.THUMBNAILS:
-		_item_list.set_max_columns(0)
-		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
-		_item_list.set_max_text_lines(2)
-
-		for i in _item_list.get_item_count():
-			var asset: Dictionary = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset["thumb"])
-	else:
-		_item_list.set_max_columns(0)
-		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
-		_item_list.set_max_text_lines(1)
-
-		for i in _item_list.get_item_count():
-			var asset: Dictionary = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset["thumb_small"])
-
-	_update_thumb_icon_size()
 
 
 func _emit_unsaved() -> void:
