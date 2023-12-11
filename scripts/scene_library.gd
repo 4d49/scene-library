@@ -118,8 +118,6 @@ enum AssetContextMenu {
 const NULL_LIBRARY: Dictionary = {}
 const NULL_COLLECTION: Array[Dictionary] = []
 
-# INFO: Required to change parent panel style.
-var _parent_container: PanelContainer = null
 
 var _main_vbox: VBoxContainer = null
 
@@ -182,16 +180,6 @@ var _curr_collec: Array[Dictionary] = NULL_COLLECTION
 var _curr_collec_map: Dictionary = {} # {int: Dictionary}
 
 
-func _get_parent_container() -> PanelContainer:
-	var parent: Node = get_parent()
-	while parent:
-		if parent is PanelContainer:
-			return parent
-
-		parent = parent.get_parent()
-
-	return null
-
 func _update_position_new_collection_btn() -> void:
 	var tab_bar_total_width := float(_collec_tab_bar.get_theme_constant(&"h_separation"))
 	for i in _collec_tab_bar.get_tab_count():
@@ -215,8 +203,6 @@ func _enter_tree() -> void:
 
 	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
 	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
-
-	_parent_container = _get_parent_container()
 
 	self.add_theme_constant_override(&"margin_left", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_LEFT))
 	self.add_theme_constant_override(&"margin_right", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_RIGHT))
