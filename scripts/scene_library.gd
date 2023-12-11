@@ -61,7 +61,7 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_expand_mode(TextureRect.EXPAND_IGNORE_SIZE)
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
-		thumb_rect.set_custom_minimum_size(Vector2(192.0, 192.0))
+		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
 		thumb_rect.set_texture(asset["thumb"])
 		vbox.add_child(thumb_rect)
 
@@ -118,6 +118,9 @@ enum AssetContextMenu {
 const NULL_LIBRARY: Dictionary = {}
 const NULL_COLLECTION: Array[Dictionary] = []
 
+const THUMB_GRID_SIZE = 192
+const THUMB_LIST_SIZE = 48
+
 
 var _main_vbox: VBoxContainer = null
 
@@ -142,9 +145,6 @@ var _open_dialog: ConfirmationDialog = null
 var _save_dialog: ConfirmationDialog = null
 
 var _save_timer: Timer = null
-
-var _thumb_size: int = 192
-var _thumb_size_small: int = 16
 
 # INFO: May be required for debugging.
 var _cache_enabled: bool = true
@@ -198,9 +198,6 @@ static func _def_setting(name: String, value: Variant) -> Variant:
 
 @warning_ignore("narrowing_conversion", "return_value_discarded", "unsafe_method_access")
 func _enter_tree() -> void:
-	_thumb_size = _def_setting("addons/scene_library/thumbnail/size", 192)
-	_thumb_size_small = _def_setting("addons/scene_library/thumbnail/size_small", 16)
-
 	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
 	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
 
@@ -361,7 +358,7 @@ func _enter_tree() -> void:
 	_viewport.set_update_mode(SubViewport.UPDATE_DISABLED) # We'll update the frame manually.
 	_viewport.set_debug_draw(Viewport.DEBUG_DRAW_DISABLE_LOD) # This is necessary to avoid visual glitches.
 	_viewport.set_process_mode(Node.PROCESS_MODE_DISABLED) # Needs to disable animations.
-	_viewport.set_size(Vector2i(_thumb_size, _thumb_size))
+	_viewport.set_size(Vector2i(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
 	_viewport.set_disable_input(true)
 	_viewport.set_transparent_background(true)
 	_viewport.set_physics_object_picking(false)
@@ -936,7 +933,7 @@ func _focus_camera_on_node_2d(node: Node) -> void:
 	var rect: Rect2 = _calculate_node_rect(node)
 	_camera_2d.set_position(rect.get_center())
 
-	var zoom_ratio: float = _thumb_size / maxf(rect.size.x, rect.size.y)
+	var zoom_ratio: float = THUMB_GRID_SIZE / maxf(rect.size.x, rect.size.y)
 	_camera_2d.set_zoom(Vector2(zoom_ratio, zoom_ratio))
 
 func _focus_camera_on_node_3d(node: Node) -> void:
@@ -1012,7 +1009,7 @@ func _thread_process() -> void:
 			semaphore.wait()
 
 			var image: Image = _viewport.get_texture().get_image()
-			image.resize(_thumb_size, _thumb_size, Image.INTERPOLATE_LANCZOS)
+			image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
 
 			var thumb: Dictionary = item["thumb"]
 
@@ -1025,7 +1022,7 @@ func _thread_process() -> void:
 				_save_thumb_to_disk(item["id"], image)
 
 			image = _viewport.get_texture().get_image()
-			image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
+			image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
 
 			var thumb_small: ImageTexture = thumb["small"]
 			thumb_small.changed.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
@@ -1064,13 +1061,13 @@ func _get_thumbnail(asset: Dictionary) -> Dictionary:
 		var image := Image.load_from_file(cache_path)
 		new_thumb["large"] = ImageTexture.create_from_image(image)
 
-		image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
+		image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
 		new_thumb["small"] = ImageTexture.create_from_image(image)
 
 	else:
 		# TODO: Add placeholder thumbnail.
-		new_thumb["large"] = ImageTexture.create_from_image(Image.create(_thumb_size, _thumb_size, false, Image.FORMAT_RGBA8))
-		new_thumb["small"] = ImageTexture.create_from_image(Image.create(_thumb_size_small, _thumb_size_small, false, Image.FORMAT_RGBA8))
+		new_thumb["large"] = ImageTexture.create_from_image(Image.create(THUMB_GRID_SIZE, THUMB_GRID_SIZE, false, Image.FORMAT_RGBA8))
+		new_thumb["small"] = ImageTexture.create_from_image(Image.create(THUMB_LIST_SIZE, THUMB_LIST_SIZE, false, Image.FORMAT_RGBA8))
 
 		_queue_update_thumbnail(id)
 
@@ -1368,7 +1365,7 @@ func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
 		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
 		_item_list.set_max_text_lines(1)
 		_item_list.set_fixed_column_width(int(ICON_SIZE * 3.5))
-		_item_list.set_fixed_icon_size(Vector2i(_thumb_size_small, _thumb_size_small))
+		_item_list.set_fixed_icon_size(Vector2i(THUMB_LIST_SIZE, THUMB_LIST_SIZE))
 
 		for i in _item_list.get_item_count():
 			var asset: Dictionary = _item_list.get_item_metadata(i)
