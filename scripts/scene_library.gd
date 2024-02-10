@@ -1072,9 +1072,8 @@ func _get_thumbnail(asset: Dictionary) -> Dictionary:
 		new_thumb["small"] = ImageTexture.create_from_image(image)
 
 	else:
-		# TODO: Add placeholder thumbnail.
-		new_thumb["large"] = ImageTexture.create_from_image(Image.create(THUMB_GRID_SIZE, THUMB_GRID_SIZE, false, Image.FORMAT_RGBA8))
-		new_thumb["small"] = ImageTexture.create_from_image(Image.create(THUMB_LIST_SIZE, THUMB_LIST_SIZE, false, Image.FORMAT_RGBA8))
+		new_thumb["large"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_large.svg"))
+		new_thumb["small"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_small.svg"))
 
 		_queue_update_thumbnail(id)
 
