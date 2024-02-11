@@ -61,7 +61,7 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_expand_mode(TextureRect.EXPAND_IGNORE_SIZE)
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
-		thumb_rect.set_custom_minimum_size(Vector2(192.0, 192.0))
+		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
 		thumb_rect.set_texture(asset["thumb"])
 		vbox.add_child(thumb_rect)
 
@@ -118,8 +118,9 @@ enum AssetContextMenu {
 const NULL_LIBRARY: Dictionary = {}
 const NULL_COLLECTION: Array[Dictionary] = []
 
-# INFO: Required to change parent panel style.
-var _parent_container: PanelContainer = null
+const THUMB_GRID_SIZE = 192
+const THUMB_LIST_SIZE = 48
+
 
 var _main_vbox: VBoxContainer = null
 
@@ -145,8 +146,8 @@ var _save_dialog: ConfirmationDialog = null
 
 var _save_timer: Timer = null
 
-var _thumb_size: int = 192
-var _thumb_size_small: int = 16
+var _thumb_grid_icon_size: int = 64
+var _thumb_list_icon_size: int = 16
 
 # INFO: May be required for debugging.
 var _cache_enabled: bool = true
@@ -182,16 +183,6 @@ var _curr_collec: Array[Dictionary] = NULL_COLLECTION
 var _curr_collec_map: Dictionary = {} # {int: Dictionary}
 
 
-func _get_parent_container() -> PanelContainer:
-	var parent: Node = get_parent()
-	while parent:
-		if parent is PanelContainer:
-			return parent
-
-		parent = parent.get_parent()
-
-	return null
-
 func _update_position_new_collection_btn() -> void:
 	var tab_bar_total_width := float(_collec_tab_bar.get_theme_constant(&"h_separation"))
 	for i in _collec_tab_bar.get_tab_count():
@@ -210,13 +201,11 @@ static func _def_setting(name: String, value: Variant) -> Variant:
 
 @warning_ignore("narrowing_conversion", "return_value_discarded", "unsafe_method_access")
 func _enter_tree() -> void:
-	_thumb_size = _def_setting("addons/scene_library/thumbnail/size", 192)
-	_thumb_size_small = _def_setting("addons/scene_library/thumbnail/size_small", 16)
-
 	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
 	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
 
-	_parent_container = _get_parent_container()
+	_thumb_grid_icon_size = _def_setting("addons/scene_library/thumbnail/grid_size", 64)
+	_thumb_list_icon_size = _def_setting("addons/scene_library/thumbnail/list_size", 16)
 
 	self.add_theme_constant_override(&"margin_left", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_LEFT))
 	self.add_theme_constant_override(&"margin_right", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_RIGHT))
@@ -315,7 +304,6 @@ func _enter_tree() -> void:
 	_mode_thumb_btn.set_disabled(true)
 	_mode_thumb_btn.set_tooltip_text("View items as a grid of thumbnails.")
 	_mode_thumb_btn.set_toggle_mode(true)
-	_mode_thumb_btn.set_pressed(true)
 	_mode_thumb_btn.set_button_icon(get_theme_icon(&"FileThumbnail", &"EditorIcons"))
 	_mode_thumb_btn.set_button_group(button_group)
 	_mode_thumb_btn.pressed.connect(set_asset_display_mode.bind(DisplayMode.THUMBNAILS))
@@ -338,13 +326,13 @@ func _enter_tree() -> void:
 	_item_list.set_select_mode(ItemList.SELECT_MULTI)
 	_item_list.set_max_columns(0)
 	_item_list.set_same_column_width(true)
-	_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
-	_item_list.set_fixed_column_width(64 * 3 * 0.5)
-	_item_list.set_max_text_lines(2)
-	_item_list.set_fixed_icon_size(Vector2i(64, 64))
+	_item_list.gui_input.connect(_on_item_list_gui_input)
 	_item_list.item_clicked.connect(_on_item_list_item_clicked)
 	_item_list.item_activated.connect(_on_item_list_item_activated)
 	_content_vbox.add_child(_item_list)
+
+	_asset_display_mode = _def_setting("addons/scene_library/thumbnail/mode", DisplayMode.THUMBNAILS)
+	_update_asset_display_mode(_asset_display_mode)
 
 	_open_dialog = _create_file_dialog(true)
 	_open_dialog.set_title("Open Asset Library")
@@ -375,7 +363,7 @@ func _enter_tree() -> void:
 	_viewport.set_update_mode(SubViewport.UPDATE_DISABLED) # We'll update the frame manually.
 	_viewport.set_debug_draw(Viewport.DEBUG_DRAW_DISABLE_LOD) # This is necessary to avoid visual glitches.
 	_viewport.set_process_mode(Node.PROCESS_MODE_DISABLED) # Needs to disable animations.
-	_viewport.set_size(Vector2i(_thumb_size, _thumb_size))
+	_viewport.set_size(Vector2i(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
 	_viewport.set_disable_input(true)
 	_viewport.set_transparent_background(true)
 	_viewport.set_physics_object_picking(false)
@@ -426,7 +414,7 @@ func _enter_tree() -> void:
 	collection_changed.connect(update_item_list)
 	collection_changed.connect(_save_timer.start)
 	collection_changed.connect(_emit_unsaved)
-	asset_display_mode_changed.connect(_on_asset_display_mode_changed)
+	asset_display_mode_changed.connect(_update_asset_display_mode)
 
 	load_default_library()
 
@@ -681,7 +669,9 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 	if is_same(_asset_display_mode, display_mode):
 		return
 
+	ProjectSettings.set_setting("addons/scene_library/thumbnail/mode", display_mode)
 	_asset_display_mode = display_mode
+
 	asset_display_mode_changed.emit(display_mode)
 
 func get_asset_display_mode() -> DisplayMode:
@@ -950,7 +940,7 @@ func _focus_camera_on_node_2d(node: Node) -> void:
 	var rect: Rect2 = _calculate_node_rect(node)
 	_camera_2d.set_position(rect.get_center())
 
-	var zoom_ratio: float = _thumb_size / maxf(rect.size.x, rect.size.y)
+	var zoom_ratio: float = THUMB_GRID_SIZE / maxf(rect.size.x, rect.size.y)
 	_camera_2d.set_zoom(Vector2(zoom_ratio, zoom_ratio))
 
 func _focus_camera_on_node_3d(node: Node) -> void:
@@ -1026,7 +1016,7 @@ func _thread_process() -> void:
 			semaphore.wait()
 
 			var image: Image = _viewport.get_texture().get_image()
-			image.resize(_thumb_size, _thumb_size, Image.INTERPOLATE_LANCZOS)
+			image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
 
 			var thumb: Dictionary = item["thumb"]
 
@@ -1039,7 +1029,7 @@ func _thread_process() -> void:
 				_save_thumb_to_disk(item["id"], image)
 
 			image = _viewport.get_texture().get_image()
-			image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
+			image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
 
 			var thumb_small: ImageTexture = thumb["small"]
 			thumb_small.changed.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
@@ -1078,13 +1068,12 @@ func _get_thumbnail(asset: Dictionary) -> Dictionary:
 		var image := Image.load_from_file(cache_path)
 		new_thumb["large"] = ImageTexture.create_from_image(image)
 
-		image.resize(_thumb_size_small, _thumb_size_small, Image.INTERPOLATE_LANCZOS)
+		image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
 		new_thumb["small"] = ImageTexture.create_from_image(image)
 
 	else:
-		# TODO: Add placeholder thumbnail.
-		new_thumb["large"] = ImageTexture.create_from_image(Image.create(_thumb_size, _thumb_size, false, Image.FORMAT_RGBA8))
-		new_thumb["small"] = ImageTexture.create_from_image(Image.create(_thumb_size_small, _thumb_size_small, false, Image.FORMAT_RGBA8))
+		new_thumb["large"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_large.svg"))
+		new_thumb["small"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_small.svg"))
 
 		_queue_update_thumbnail(id)
 
@@ -1293,6 +1282,86 @@ func _on_filter_assets_text_changed(_filter: String) -> void:
 func _sort_assets_button_toggled(reverse: bool) -> void:
 	set_sort_mode(SortMode.NAME_REVERSE if reverse else SortMode.NAME)
 
+
+func _update_thumb_icon_size(display_mode: DisplayMode) -> void:
+	if display_mode == DisplayMode.THUMBNAILS:
+		_item_list.set_fixed_column_width(_thumb_grid_icon_size * 1.5)
+		_item_list.set_fixed_icon_size(Vector2i(_thumb_grid_icon_size, _thumb_grid_icon_size))
+	else:
+		_item_list.set_fixed_column_width(0)
+		_item_list.set_fixed_icon_size(Vector2i(_thumb_list_icon_size, _thumb_list_icon_size))
+
+func _update_asset_display_mode(display_mode: DisplayMode) -> void:
+	if display_mode == DisplayMode.THUMBNAILS:
+		_item_list.set_max_columns(0)
+		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
+		_item_list.set_max_text_lines(2)
+
+		for i in _item_list.get_item_count():
+			var asset: Dictionary = _item_list.get_item_metadata(i)
+			_item_list.set_item_icon(i, asset["thumb"])
+
+		_mode_thumb_btn.set_pressed_no_signal(true)
+	else:
+		_item_list.set_max_columns(0)
+		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
+		_item_list.set_max_text_lines(1)
+
+		for i in _item_list.get_item_count():
+			var asset: Dictionary = _item_list.get_item_metadata(i)
+			_item_list.set_item_icon(i, asset["thumb_small"])
+
+		_mode_list_btn.set_pressed_no_signal(true)
+
+	_update_thumb_icon_size(display_mode)
+
+
+func _set_thumb_grid_icon_size(icon_size: int) -> void:
+	icon_size = clampi(icon_size, THUMB_LIST_SIZE, THUMB_GRID_SIZE)
+	if _thumb_grid_icon_size == icon_size:
+		return
+
+	ProjectSettings.set_setting("addons/scene_library/thumbnail/grid_size", icon_size)
+	_thumb_grid_icon_size = icon_size
+
+	_update_thumb_icon_size(_asset_display_mode)
+
+func _set_thumb_list_icon_size(icon_size: int) -> void:
+	const ICON_MIN_SIZE = 16
+
+	icon_size = clampi(icon_size, ICON_MIN_SIZE, THUMB_LIST_SIZE)
+	if _thumb_list_icon_size == icon_size:
+		return
+
+	ProjectSettings.set_setting("addons/scene_library/thumbnail/list_size", icon_size)
+	_thumb_list_icon_size = icon_size
+
+	_update_thumb_icon_size(_asset_display_mode)
+
+
+func _on_item_list_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.is_pressed() and event.is_command_or_control_pressed():
+		const ICON_GRID_STEP = 8
+		const ICON_LIST_STEP = 4
+
+		match event.get_button_index():
+			MOUSE_BUTTON_WHEEL_UP:
+				if _asset_display_mode == DisplayMode.THUMBNAILS:
+					_set_thumb_grid_icon_size(_thumb_grid_icon_size + ICON_GRID_STEP)
+				else:
+					_set_thumb_list_icon_size(_thumb_list_icon_size + ICON_LIST_STEP)
+
+			MOUSE_BUTTON_WHEEL_DOWN:
+				if _asset_display_mode == DisplayMode.THUMBNAILS:
+					_set_thumb_grid_icon_size(_thumb_grid_icon_size - ICON_GRID_STEP)
+				else:
+					_set_thumb_list_icon_size(_thumb_list_icon_size - ICON_LIST_STEP)
+
+			_:
+				return
+
+		accept_event()
+
 @warning_ignore("return_value_discarded")
 func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_index: int) -> void:
 	if mouse_button_index != MOUSE_BUTTON_RIGHT:
@@ -1361,32 +1430,6 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 func _on_item_list_item_activated(index: int) -> void:
 	var asset: Dictionary = _item_list.get_item_metadata(index)
 	open_asset_request.emit(asset["path"])
-
-
-func _on_asset_display_mode_changed(display_mode: DisplayMode) -> void:
-	# TODO: Add a feature to resize icons.
-	const ICON_SIZE = 64
-
-	if display_mode == DisplayMode.THUMBNAILS:
-		_item_list.set_max_columns(0)
-		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
-		_item_list.set_max_text_lines(2)
-		_item_list.set_fixed_column_width(int(ICON_SIZE * 3 * 0.5))
-		_item_list.set_fixed_icon_size(Vector2i(ICON_SIZE, ICON_SIZE))
-
-		for i in _item_list.get_item_count():
-			var asset: Dictionary = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset["thumb"])
-	else:
-		_item_list.set_max_columns(0)
-		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
-		_item_list.set_max_text_lines(1)
-		_item_list.set_fixed_column_width(int(ICON_SIZE * 3.5))
-		_item_list.set_fixed_icon_size(Vector2i(_thumb_size_small, _thumb_size_small))
-
-		for i in _item_list.get_item_count():
-			var asset: Dictionary = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset["thumb_small"])
 
 
 func _emit_unsaved() -> void:

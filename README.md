@@ -19,6 +19,7 @@ Add-on for easy and fast work with scenes as assets. Both 3D and 2D scenes are s
 - Option to save the library as a file.
 - Quick search for scenes.
 - Toggle asset display view mode.
+- Resizing thumbnails(`CTRL` + `Mouse wheel`).
 
 # Installation:
 
