@@ -925,10 +925,12 @@ func _calculate_node_rect(node: Node) -> Rect2:
 func _calculate_node_aabb(node: Node) -> AABB:
 	var aabb := AABB()
 
+	if node is Node3D and not node.is_visible():
+		return aabb
 	# NOTE: If the node is not MeshInstance3D, the AABB is not calculated correctly.
 	# The camera may have incorrect distances to objects in the scene.
-	if node is MeshInstance3D and node.is_visible():
-		aabb = node.get_aabb() * node.get_global_transform()
+	elif node is MeshInstance3D:
+		aabb = node.get_global_transform() * node.get_aabb()
 
 	for i: int in node.get_child_count():
 		aabb = aabb.merge(_calculate_node_aabb(node.get_child(i)))
