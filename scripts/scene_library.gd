@@ -211,6 +211,8 @@ func _enter_tree() -> void:
 	self.add_theme_constant_override(&"margin_right", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_RIGHT))
 	self.add_theme_constant_override(&"margin_top", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_TOP))
 
+	self.set_custom_minimum_size(Vector2(0.0, 180.0))
+
 	# INFO: Required to create a tab pseudo-container background.
 	var tabbar_background := Panel.new()
 	tabbar_background.add_theme_stylebox_override(&"panel", get_theme_stylebox(&"tabbar_background", &"TabContainer"))
@@ -320,7 +322,6 @@ func _enter_tree() -> void:
 	_top_hbox.add_child(_mode_list_btn)
 
 	_item_list = AssetItemList.new()
-	_item_list.set_size(Vector2(128.0, 128.0))
 	_item_list.set_v_size_flags(Control.SIZE_EXPAND_FILL)
 	_item_list.set_mouse_filter(Control.MOUSE_FILTER_PASS)
 	_item_list.set_focus_mode(Control.FOCUS_CLICK)
