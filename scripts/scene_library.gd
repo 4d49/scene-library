@@ -320,6 +320,7 @@ func _enter_tree() -> void:
 	_top_hbox.add_child(_mode_list_btn)
 
 	_item_list = AssetItemList.new()
+	_item_list.set_size(Vector2(128.0, 128.0))
 	_item_list.set_v_size_flags(Control.SIZE_EXPAND_FILL)
 	_item_list.set_mouse_filter(Control.MOUSE_FILTER_PASS)
 	_item_list.set_focus_mode(Control.FOCUS_CLICK)
