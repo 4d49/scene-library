@@ -753,13 +753,15 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary:
 	var id: int = ResourceUID.text_to_id(uid)
 
 	# TODO: Add error handling.
-	if id >= 0 and ResourceUID.has_id(id): # If the UID is valid.
+	if id != ResourceUID.INVALID_ID and ResourceUID.has_id(id): # If the UID is valid.
 		path = ResourceUID.get_id_path(id)
 	# If the UID is wrong, try to load the asset by the path.
 	# It also checks whether the file extension is valid.
-	elif ResourceLoader.exists(path, "PackedScene") and path.get_extension().to_lower() in ResourceLoader.get_recognized_extensions_for_type("PackedScene"):
+	elif ResourceLoader.exists(path, "PackedScene") and ResourceLoader.get_recognized_extensions_for_type("PackedScene").has(path.get_extension().to_lower()):
 		id = ResourceLoader.get_resource_uid(path)
-		uid = ResourceUID.get_id_path(id)
+		uid = ResourceUID.id_to_text(id)
+
+		ResourceUID.add_id(id, path)
 	# Invalid assset.
 	else:
 		return {}
@@ -778,8 +780,11 @@ func _load_cfg(path: String) -> Dictionary:
 		var collection: Array[Dictionary] = config.get_value("", key)
 
 		for i in collection.size():
-			var asset: Dictionary = collection[i]
-			collection[i] = _deserialize_asset(asset)
+			var asset: Dictionary = _deserialize_asset(collection[i])
+			if asset.is_empty(): # Skip invalid assets.
+				continue
+
+			collection[i] = asset
 
 		library[key] = collection
 
