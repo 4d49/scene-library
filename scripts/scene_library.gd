@@ -215,6 +215,8 @@ func _enter_tree() -> void:
 	var tabbar_background := Panel.new()
 	tabbar_background.add_theme_stylebox_override(&"panel", get_theme_stylebox(&"tabbar_background", &"TabContainer"))
 	self.add_child(tabbar_background)
+	
+	set_custom_minimum_size(Vector2(0.0,180.0))
 
 	_main_vbox = VBoxContainer.new()
 	_main_vbox.add_theme_constant_override(&"separation", 0)
@@ -320,7 +322,6 @@ func _enter_tree() -> void:
 	_top_hbox.add_child(_mode_list_btn)
 
 	_item_list = AssetItemList.new()
-	_item_list.set_size(Vector2(128.0, 128.0))
 	_item_list.set_v_size_flags(Control.SIZE_EXPAND_FILL)
 	_item_list.set_mouse_filter(Control.MOUSE_FILTER_PASS)
 	_item_list.set_focus_mode(Control.FOCUS_CLICK)
