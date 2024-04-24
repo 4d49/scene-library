@@ -177,7 +177,7 @@ var _thread_work := true
 
 # INFO: Use key-value pairs to store collections.
 var _curr_lib: Dictionary = NULL_LIBRARY # {String: Array[Dictionary]}
-var _curr_lib_path: String = "res://.godot/asset_palette.cfg"
+var _curr_lib_path: String = ""
 
 var _curr_collec: Array[Dictionary] = NULL_COLLECTION
 # INFO: Used to quickly find a value by UID.
@@ -421,7 +421,8 @@ func _enter_tree() -> void:
 	collection_changed.connect(_emit_unsaved)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	load_default_library()
+	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://.godot/scene_library.cfg")
+	load_library(_curr_lib_path)
 
 
 func _exit_tree() -> void:
@@ -481,6 +482,7 @@ func set_current_library_path(path: String) -> void:
 	if is_same(_curr_lib_path, path):
 		return
 
+	ProjectSettings.set_setting("addons/scene_library/library/current_library_path", path)
 	_curr_lib_path = path
 
 func get_current_library_path() -> String:
@@ -848,11 +850,6 @@ func load_library(path: String) -> void:
 
 	set_current_library(library)
 	set_current_library_path(path)
-
-
-func load_default_library() -> void:
-	# TODO: Add an option to set up a custom path.
-	load_library("res://.godot/scene_library.cfg")
 
 
 
