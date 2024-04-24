@@ -5,6 +5,13 @@ extends MarginContainer
 
 
 class AssetItemList extends ItemList:
+	func _gui_input(event: InputEvent) -> void:
+		if event.is_action_pressed(&"ui_text_select_all"):
+			for i: int in get_item_count():
+				select(i, false)
+
+			accept_event()
+
 	func _create_drag_preview(files: PackedStringArray) -> Control:
 		const MAX_ROWS = 6
 
