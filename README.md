@@ -33,7 +33,7 @@ Create a new tab and drag and drop a scene file from `FileSystem` dock. Profit!
 
 # License
 
-Copyright (c) 2023 Mansur Isaev and contributors
+Copyright (c) 2023-2024 Mansur Isaev and contributors
 
 Unless otherwise specified, files in this repository are licensed under the
 MIT license. See [LICENSE.md](LICENSE.md) for more information.
