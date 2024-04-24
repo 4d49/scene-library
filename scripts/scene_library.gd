@@ -113,6 +113,7 @@ enum AssetContextMenu {
 	DELETE_ASSET,
 	SHOW_IN_FILE_SYSTEM,
 	SHOW_IN_FILE_MANAGER,
+	REFRESH,
 	MAX,
 }
 
@@ -1395,7 +1396,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				DisplayServer.clipboard_set(asset["uid"])
 
 			AssetContextMenu.DELETE_ASSET:
-				for i in selected_assets:
+				for i: int in selected_assets:
 					_curr_collec.erase(_item_list.get_item_metadata(i))
 
 				_update_collection_map()
@@ -1410,27 +1411,37 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
 				var asset: Dictionary = _item_list.get_item_metadata(selected_assets[0])
 				show_in_file_manager_request.emit(asset["path"])
+
+			AssetContextMenu.REFRESH:
+				for i: int in selected_assets:
+					var asset: Dictionary = _item_list.get_item_metadata(i)
+					_queue_update_thumbnail(asset["id"])
 		)
 	self.add_child(popup)
 
 	if selected_assets.size() == 1: # If only one asset is selected.
 		popup.add_item("Open", AssetContextMenu.OPEN_ASSET)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.OPEN_ASSET), get_theme_icon(&"Load", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
 		popup.add_separator()
 		popup.add_item("Copy Path", AssetContextMenu.COPY_PATH)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.COPY_PATH), get_theme_icon(&"ActionCopy", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"ActionCopy", &"EditorIcons"))
 		popup.add_item("Copy UID", AssetContextMenu.COPY_UID)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.COPY_UID), get_theme_icon(&"Instance", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Instance", &"EditorIcons"))
 		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Remove", &"EditorIcons"))
 		popup.add_separator()
 		popup.add_item("Show in FileSystem", AssetContextMenu.SHOW_IN_FILE_SYSTEM)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.SHOW_IN_FILE_SYSTEM), get_theme_icon(&"Filesystem", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Filesystem", &"EditorIcons"))
 		popup.add_item("Show in File Manager", AssetContextMenu.SHOW_IN_FILE_MANAGER)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.SHOW_IN_FILE_MANAGER), get_theme_icon(&"Folder", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Folder", &"EditorIcons"))
+		popup.add_separator()
+		popup.add_item("Refresh", AssetContextMenu.REFRESH)
+		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 	else: # If many assets are selected.
 		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
 		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
+		popup.add_item("Refresh", AssetContextMenu.REFRESH)
+		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 
 	popup.popup(Rect2i(_item_list.get_screen_position() + at_position, Vector2i.ZERO))
 
