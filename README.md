@@ -2,10 +2,10 @@
 
 Add-on for easy and fast work with scenes as assets. Both 3D and 2D scenes are supported
 
-> [!IMPORTANT] 
+> [!IMPORTANT]
 > Only Godot 4.2+ is supported.
 
-> [!WARNING]  
+> [!WARNING]
 > The add-on is still under development and needs testing!
 
 ![](https://github.com/4d49/scene-library/assets/8208165/b1546bc6-2b8a-4bdc-b178-8cefc961a6ef)
@@ -23,7 +23,7 @@ Add-on for easy and fast work with scenes as assets. Both 3D and 2D scenes are s
 
 # Installation:
 
-1. Clone this repository to `addons` folder.
+1. `git clone` this repository to `addons` folder.
 2. Enable `Scene Library` in Plugins.
 4. Done!
 
