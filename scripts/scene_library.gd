@@ -1,10 +1,17 @@
-# Copyright (c) 2023 Mansur Isaev and contributors - MIT License
+# Copyright (c) 2023-2024 Mansur Isaev and contributors - MIT License
 # See `LICENSE.md` included in the source distribution for details.
 
 extends MarginContainer
 
 
 class AssetItemList extends ItemList:
+	func _gui_input(event: InputEvent) -> void:
+		if event.is_action_pressed(&"ui_text_select_all"):
+			for i: int in get_item_count():
+				select(i, false)
+
+			accept_event()
+
 	func _create_drag_preview(files: PackedStringArray) -> Control:
 		const MAX_ROWS = 6
 
@@ -84,6 +91,8 @@ signal show_in_file_system_request(path: String)
 signal show_in_file_manager_request(path: String)
 signal asset_display_mode_changed(display_mode: DisplayMode)
 
+signal thumb_created(texture: Texture2D)
+
 
 enum CollectionTabMenu {
 	NEW,
@@ -111,6 +120,7 @@ enum AssetContextMenu {
 	DELETE_ASSET,
 	SHOW_IN_FILE_SYSTEM,
 	SHOW_IN_FILE_MANAGER,
+	REFRESH,
 	MAX,
 }
 
@@ -174,7 +184,7 @@ var _thread_work := true
 
 # INFO: Use key-value pairs to store collections.
 var _curr_lib: Dictionary = NULL_LIBRARY # {String: Array[Dictionary]}
-var _curr_lib_path: String = "res://.godot/asset_palette.cfg"
+var _curr_lib_path: String = ""
 
 var _curr_collec: Array[Dictionary] = NULL_COLLECTION
 # INFO: Used to quickly find a value by UID.
@@ -418,7 +428,8 @@ func _enter_tree() -> void:
 	collection_changed.connect(_emit_unsaved)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	load_default_library()
+	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://.godot/scene_library.cfg")
+	load_library(_curr_lib_path)
 
 
 func _exit_tree() -> void:
@@ -478,6 +489,7 @@ func set_current_library_path(path: String) -> void:
 	if is_same(_curr_lib_path, path):
 		return
 
+	ProjectSettings.set_setting("addons/scene_library/library/current_library_path", path)
 	_curr_lib_path = path
 
 func get_current_library_path() -> String:
@@ -847,11 +859,6 @@ func load_library(path: String) -> void:
 	set_current_library_path(path)
 
 
-func load_default_library() -> void:
-	# TODO: Add an option to set up a custom path.
-	load_library("res://.godot/scene_library.cfg")
-
-
 
 
 func _serialize_asset(asset: Dictionary) -> Dictionary:
@@ -980,13 +987,35 @@ func _save_thumb_to_disk(id: int, image: Image) -> void:
 	var error := image.save_png(_get_thumb_cache_path(ResourceUID.get_id_path(id)))
 	assert(error == OK, error_string(error))
 
+func _create_thumb() -> void:
+	await RenderingServer.frame_pre_draw
+	_viewport.set_update_mode(SubViewport.UPDATE_ONCE)
+
+	await RenderingServer.frame_post_draw
+
+	var texture: Texture2D = _viewport.get_texture()
+	thumb_created.emit(texture)
+
 @warning_ignore("return_value_discarded")
 func _thread_process() -> void:
 	var semaphore := Semaphore.new()
 
-	var preview_frame_started := func() -> void:
-		_viewport.set_update_mode(SubViewport.UPDATE_ONCE)
-		RenderingServer.request_frame_drawn_callback(semaphore.post)
+	var update_thumb := func(texture: Texture2D, item: Dictionary) -> void:
+		if is_instance_valid(texture):
+			var image: Image = texture.get_image()
+
+			image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
+			var thumb_large: ImageTexture = item["thumb"]["large"]
+			thumb_large.update(image)
+
+			if _cache_enabled:
+				_save_thumb_to_disk(item["id"], image)
+
+			image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
+			var thumb_small: ImageTexture = item["thumb"]["small"]
+			thumb_small.update(image)
+
+		semaphore.post()
 
 	while _thread_work:
 		if _thread_queue.is_empty():
@@ -1011,47 +1040,22 @@ func _thread_process() -> void:
 			semaphore.wait()
 
 			if instance is Node2D:
-				_camera_2d.set_enabled(true)
-				_camera_3d.set_current(false)
-
-				_focus_camera_on_node_2d(instance)
+				_camera_3d.call_deferred(&"set_current", false)
+				_camera_2d.call_deferred(&"set_enabled", true)
+				call_deferred(&"_focus_camera_on_node_2d", instance)
 			else:
-				_camera_2d.set_enabled(false)
-				_camera_3d.set_current(true)
+				_camera_2d.call_deferred(&"set_enabled", false)
+				_camera_3d.call_deferred(&"set_current", true)
+				call_deferred(&"_focus_camera_on_node_3d", instance)
 
-				_focus_camera_on_node_3d(instance)
-
-			RenderingServer.frame_pre_draw.connect(preview_frame_started, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
+			call_deferred(&"connect", &"thumb_created", update_thumb.bind(item), Object.CONNECT_ONE_SHOT)
+			call_deferred(&"_create_thumb")
 			semaphore.wait()
 
-			var image: Image = _viewport.get_texture().get_image()
-			image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
-
-			var thumb: Dictionary = item["thumb"]
-
-			var thumb_large: ImageTexture = thumb["large"]
-			thumb_large.changed.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
-			thumb_large.update(image)
-			semaphore.wait()
-
-			if _cache_enabled:
-				_save_thumb_to_disk(item["id"], image)
-
-			image = _viewport.get_texture().get_image()
-			image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
-
-			var thumb_small: ImageTexture = thumb["small"]
-			thumb_small.changed.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
-			thumb_small.update(image)
-			semaphore.wait()
-
-			instance.tree_exited.connect(semaphore.post)
+			instance.call_deferred(&"connect", &"tree_exited", semaphore.post)
 			instance.queue_free()
 			semaphore.wait()
 
-			# Otherwise it crashes sometimes.
-			RenderingServer.frame_pre_draw.connect(semaphore.post, Object.CONNECT_DEFERRED | Object.CONNECT_ONE_SHOT)
-			semaphore.wait()
 
 func _queue_update_thumbnail(id: int) -> void:
 	if _thumbnails.has(id):
@@ -1396,7 +1400,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				DisplayServer.clipboard_set(asset["uid"])
 
 			AssetContextMenu.DELETE_ASSET:
-				for i in selected_assets:
+				for i: int in selected_assets:
 					_curr_collec.erase(_item_list.get_item_metadata(i))
 
 				_update_collection_map()
@@ -1411,27 +1415,37 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
 				var asset: Dictionary = _item_list.get_item_metadata(selected_assets[0])
 				show_in_file_manager_request.emit(asset["path"])
+
+			AssetContextMenu.REFRESH:
+				for i: int in selected_assets:
+					var asset: Dictionary = _item_list.get_item_metadata(i)
+					_queue_update_thumbnail(asset["id"])
 		)
 	self.add_child(popup)
 
 	if selected_assets.size() == 1: # If only one asset is selected.
 		popup.add_item("Open", AssetContextMenu.OPEN_ASSET)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.OPEN_ASSET), get_theme_icon(&"Load", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
 		popup.add_separator()
 		popup.add_item("Copy Path", AssetContextMenu.COPY_PATH)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.COPY_PATH), get_theme_icon(&"ActionCopy", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"ActionCopy", &"EditorIcons"))
 		popup.add_item("Copy UID", AssetContextMenu.COPY_UID)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.COPY_UID), get_theme_icon(&"Instance", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Instance", &"EditorIcons"))
 		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Remove", &"EditorIcons"))
 		popup.add_separator()
 		popup.add_item("Show in FileSystem", AssetContextMenu.SHOW_IN_FILE_SYSTEM)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.SHOW_IN_FILE_SYSTEM), get_theme_icon(&"Filesystem", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Filesystem", &"EditorIcons"))
 		popup.add_item("Show in File Manager", AssetContextMenu.SHOW_IN_FILE_MANAGER)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.SHOW_IN_FILE_MANAGER), get_theme_icon(&"Folder", &"EditorIcons"))
+		popup.set_item_icon(-1, get_theme_icon(&"Folder", &"EditorIcons"))
+		popup.add_separator()
+		popup.add_item("Refresh", AssetContextMenu.REFRESH)
+		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 	else: # If many assets are selected.
 		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
 		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
+		popup.add_item("Refresh", AssetContextMenu.REFRESH)
+		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 
 	popup.popup(Rect2i(_item_list.get_screen_position() + at_position, Vector2i.ZERO))
 
