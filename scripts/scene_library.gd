@@ -353,7 +353,6 @@ func _enter_tree() -> void:
 
 	_save_dialog = _create_file_dialog(false)
 	_save_dialog.set_title("Save Asset Library As...")
-	#_save_dialog.set_current_path("new_library.cfg") # Condition "!is_inside_tree()" is true.
 	_save_dialog.connect(&"file_selected", save_library)
 	self.add_child(_save_dialog)
 
@@ -548,7 +547,6 @@ static func get_or_create_valid_uid(path: String) -> int:
 	if id == ResourceUID.INVALID_ID:
 		id = ResourceUID.create_id()
 		ResourceUID.add_id(id, path)
-		prints("INVALID_ID", id)
 
 	return id
 
