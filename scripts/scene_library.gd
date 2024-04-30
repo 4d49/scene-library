@@ -248,7 +248,7 @@ func _enter_tree() -> void:
 	_collec_tab_bar.add_tab("[null]")
 	_collec_tab_bar.set_tab_disabled(0, true)
 	_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
-	_collec_tab_bar.tab_changed.connect(_on_collection_tab_changed)
+	_collec_tab_bar.tab_selected.connect(_on_collection_tab_changed)
 	_collec_tab_bar.tab_close_pressed.connect(_on_collection_tab_close_pressed)
 	_collec_tab_bar.tab_rmb_clicked.connect(_on_collection_tab_rmb_clicked)
 	_collec_hbox.add_child(_collec_tab_bar)
@@ -481,6 +481,8 @@ func set_current_library(library: Dictionary) -> void:
 
 	_curr_lib = library
 	library_changed.emit()
+	# Switch to the first tab.
+	_collec_tab_bar.set_current_tab(0)
 
 func get_current_library() -> Dictionary:
 	return _curr_lib
@@ -514,6 +516,8 @@ func create_collection(c_name: String) -> void:
 func remove_collection(c_name: String) -> void:
 	if _curr_lib.erase(c_name):
 		library_changed.emit()
+		# Swith to the prev tab.
+		_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
 
 func get_collection(c_name: String) -> Array[Dictionary]:
@@ -653,14 +657,7 @@ func update_tabs() -> void:
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
 		_collec_tab_bar.set_tab_title(0, "[null]")
 		_collec_tab_bar.set_tab_disabled(0, true)
-
 		_collec_tab_bar.set_tab_metadata(0, NULL_COLLECTION)
-
-	# WARNING: Metadata must always be of type Array[Dictionary]!
-	# Every time when we update the tabs, we try to assign a new collection.
-	# This is necessary to create an actual list of assets.
-	var collection: Array[Dictionary] = _collec_tab_bar.get_tab_metadata(_collec_tab_bar.get_current_tab())
-	set_current_collection(collection)
 
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
