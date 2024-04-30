@@ -137,6 +137,7 @@ var _main_vbox: VBoxContainer = null
 var _collec_hbox: HBoxContainer = null
 var _collec_tab_bar: TabBar = null
 var _collec_tab_add: Button = null
+var _all_tabs_list: MenuButton = null
 var _collec_option: MenuButton = null
 
 var _main_container: PanelContainer = null
@@ -201,6 +202,8 @@ func _update_position_new_collection_btn() -> void:
 	_collec_tab_bar.size = Vector2(minf(_collec_tab_bar.size.x, tab_bar_total_width), 0.0)
 	_collec_tab_add.position.x = _collec_tab_bar.size.x
 
+	_all_tabs_list.set_visible(_collec_tab_bar.get_offset_buttons_visible())
+
 
 static func _def_setting(name: String, value: Variant) -> Variant:
 	if not ProjectSettings.has_setting(name):
@@ -263,13 +266,23 @@ func _enter_tree() -> void:
 	_collec_tab_add.pressed.connect(show_create_collection_dialog)
 	_collec_hbox.add_child(_collec_tab_add)
 
+	_all_tabs_list = MenuButton.new()
+	_all_tabs_list.hide()
+	_all_tabs_list.set_tooltip_text("List all tabs.")
+	_all_tabs_list.set_button_icon(get_theme_icon(&"GuiOptionArrow", &"EditorIcons"))
+	_all_tabs_list.add_theme_color_override(&"icon_normal_color", Color(0.6, 0.6, 0.6, 0.8))
+	_collec_hbox.add_child(_all_tabs_list)
+
+	var popup: PopupMenu = _all_tabs_list.get_popup()
+	popup.index_pressed.connect(_collec_tab_bar.set_current_tab)
+
 	_collec_option = MenuButton.new()
 	_collec_option.set_flat(true)
 	_collec_option.set_button_icon(get_theme_icon(&"GuiTabMenuHl", &"EditorIcons"))
 	_collec_option.add_theme_color_override(&"icon_normal_color", Color(0.6, 0.6, 0.6, 0.8))
 	_collec_hbox.add_child(_collec_option)
 
-	var popup: PopupMenu = _collec_option.get_popup()
+	popup = _collec_option.get_popup()
 	popup.add_item("New Library", LibraryMenu.NEW)
 	popup.add_item("Open Library", LibraryMenu.OPEN)
 	popup.add_separator()
@@ -642,10 +655,15 @@ func update_tabs() -> void:
 		_collec_tab_bar.set_tab_count(_curr_lib.size())
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_ACTIVE_ONLY)
 
+		var popup: PopupMenu = _all_tabs_list.get_popup()
+		popup.set_item_count(_curr_lib.size())
+
 		var index: int = 0
 		for c_name: String in _curr_lib:
 			_collec_tab_bar.set_tab_title(index, c_name)
 			_collec_tab_bar.set_tab_disabled(index, false)
+
+			popup.set_item_text(index, c_name)
 
 			var collec: Array[Dictionary] = _curr_lib[c_name]
 			_collec_tab_bar.set_tab_metadata(index, collec)
