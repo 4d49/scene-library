@@ -353,7 +353,6 @@ func _enter_tree() -> void:
 
 	_save_dialog = _create_file_dialog(false)
 	_save_dialog.set_title("Save Asset Library As...")
-	#_save_dialog.set_current_path("new_library.cfg") # Condition "!is_inside_tree()" is true.
 	_save_dialog.connect(&"file_selected", save_library)
 	self.add_child(_save_dialog)
 
@@ -431,6 +430,8 @@ func _enter_tree() -> void:
 	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://.godot/scene_library.cfg")
 	load_library(_curr_lib_path)
 
+	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
+
 
 func _exit_tree() -> void:
 	_mutex.lock()
@@ -460,7 +461,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 		if not rec_ext.has(extension):
 			return false
 
-		if has_asset_path(file) or not ResourceLoader.exists(file, "PackedScene"):
+		if has_asset_path(file) or not is_valid_scene_file(file):
 			return false
 
 	return true
@@ -538,11 +539,24 @@ func _create_asset(id: int, uid: String, path: String) -> Dictionary:
 
 	return asset
 
-func create_asset(path: String) -> void:
-	assert(ResourceLoader.exists(path, "PackedScene"), "There is no recognised resource for the specified path.")
-	assert(not has_asset_path(path), "The current collection already contains an asset with the same path")
 
+static func is_valid_scene_file(path: String) -> bool:
+	return ResourceLoader.exists(path, "PackedScene") and ResourceLoader.get_recognized_extensions_for_type("PackedScene").has(path.get_extension().to_lower())
+
+
+static func get_or_create_valid_uid(path: String) -> int:
 	var id: int = ResourceLoader.get_resource_uid(path)
+	if id == ResourceUID.INVALID_ID:
+		id = ResourceUID.create_id()
+		ResourceUID.add_id(id, path)
+
+	return id
+
+
+func create_asset(path: String) -> void:
+	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
+
+	var id: int = get_or_create_valid_uid(path)
 	var new_asset: Dictionary = _create_asset(id, ResourceUID.id_to_text(id), path)
 
 	_curr_collec.push_back(new_asset)
@@ -770,7 +784,7 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary:
 		path = ResourceUID.get_id_path(id)
 	# If the UID is wrong, try to load the asset by the path.
 	# It also checks whether the file extension is valid.
-	elif ResourceLoader.exists(path, "PackedScene") and ResourceLoader.get_recognized_extensions_for_type("PackedScene").has(path.get_extension().to_lower()):
+	elif is_valid_scene_file(path):
 		id = ResourceLoader.get_resource_uid(path)
 		uid = ResourceUID.id_to_text(id)
 
@@ -1026,7 +1040,7 @@ func _thread_process() -> void:
 			_mutex.unlock()
 
 			var path: String = ResourceUID.get_id_path(item["id"])
-			if not ResourceLoader.exists(path, "PackedScene"):
+			if not is_valid_scene_file(path):
 				continue
 
 			var packed_scene: PackedScene = ResourceLoader.load(path, "PackedScene")
