@@ -1099,8 +1099,8 @@ func _get_thumbnail(asset: Dictionary) -> Dictionary:
 		new_thumb["small"] = ImageTexture.create_from_image(image)
 
 	else:
-		new_thumb["large"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_large.svg"))
-		new_thumb["small"] = ImageTexture.create_from_image(Image.load_from_file("res://addons/scene-library/icons/thumb_small.svg"))
+		new_thumb["large"] = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_large.svg")))
+		new_thumb["small"] = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_small.svg")))
 
 		_queue_update_thumbnail(id)
 
