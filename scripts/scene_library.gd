@@ -4,81 +4,6 @@
 extends MarginContainer
 
 
-class AssetItemList extends ItemList:
-	func _gui_input(event: InputEvent) -> void:
-		if event.is_action_pressed(&"ui_text_select_all"):
-			for i: int in get_item_count():
-				select(i, false)
-
-			accept_event()
-
-	func _create_drag_preview(files: PackedStringArray) -> Control:
-		const MAX_ROWS = 6
-
-		var vbox := VBoxContainer.new()
-		var num_rows := mini(files.size(), MAX_ROWS)
-
-		for i: int in num_rows:
-			var hbox := HBoxContainer.new()
-			vbox.add_child(hbox)
-
-			var icon := TextureRect.new()
-			icon.set_texture(get_theme_icon(&"File", &"EditorIcons"))
-			icon.set_stretch_mode(TextureRect.STRETCH_KEEP_CENTERED)
-			icon.set_size(Vector2(16.0, 16.0))
-			hbox.add_child(icon)
-
-			var label := Label.new()
-			label.set_text(files[i].get_file().get_basename())
-			hbox.add_child(label)
-
-		if files.size() > num_rows:
-			var label := Label.new()
-			label.set_text("%d more files" % int(files.size() - num_rows))
-			vbox.add_child(label)
-
-		return vbox
-
-	func _get_drag_data(at_position: Vector2) -> Variant:
-		var item: int = get_item_at_position(at_position)
-		if item < 0:
-			return null
-
-		var files := PackedStringArray()
-		for i: int in get_selected_items():
-			var asset: Dictionary = get_item_metadata(i)
-			files.push_back(asset["path"])
-
-		set_drag_preview(_create_drag_preview(files))
-
-		return {"type": "files", "files": files}
-
-	func _make_custom_tooltip(_for_text: String) -> Object:
-		var item: int = get_item_at_position(get_local_mouse_position())
-		if item < 0:
-			return null
-
-		var asset: Dictionary = get_item_metadata(item)
-		if asset.is_empty():
-			return null
-
-		var vbox := VBoxContainer.new()
-
-		var thumb_rect := TextureRect.new()
-		thumb_rect.set_expand_mode(TextureRect.EXPAND_IGNORE_SIZE)
-		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
-		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
-		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
-		thumb_rect.set_texture(asset["thumb"])
-		vbox.add_child(thumb_rect)
-
-		var label := Label.new()
-		label.set_text(asset["path"])
-		vbox.add_child(label)
-
-		return vbox
-
-
 signal library_changed
 
 signal library_unsaved
@@ -1494,3 +1419,80 @@ func _on_save_timer_timeout() -> void:
 		return
 
 	save_library(_curr_lib_path)
+
+
+
+
+class AssetItemList extends ItemList:
+	func _gui_input(event: InputEvent) -> void:
+		if event.is_action_pressed(&"ui_text_select_all"):
+			for i: int in get_item_count():
+				select(i, false)
+
+			accept_event()
+
+	func _create_drag_preview(files: PackedStringArray) -> Control:
+		const MAX_ROWS = 6
+
+		var vbox := VBoxContainer.new()
+		var num_rows := mini(files.size(), MAX_ROWS)
+
+		for i: int in num_rows:
+			var hbox := HBoxContainer.new()
+			vbox.add_child(hbox)
+
+			var icon := TextureRect.new()
+			icon.set_texture(get_theme_icon(&"File", &"EditorIcons"))
+			icon.set_stretch_mode(TextureRect.STRETCH_KEEP_CENTERED)
+			icon.set_size(Vector2(16.0, 16.0))
+			hbox.add_child(icon)
+
+			var label := Label.new()
+			label.set_text(files[i].get_file().get_basename())
+			hbox.add_child(label)
+
+		if files.size() > num_rows:
+			var label := Label.new()
+			label.set_text("%d more files" % int(files.size() - num_rows))
+			vbox.add_child(label)
+
+		return vbox
+
+	func _get_drag_data(at_position: Vector2) -> Variant:
+		var item: int = get_item_at_position(at_position)
+		if item < 0:
+			return null
+
+		var files := PackedStringArray()
+		for i: int in get_selected_items():
+			var asset: Dictionary = get_item_metadata(i)
+			files.push_back(asset["path"])
+
+		set_drag_preview(_create_drag_preview(files))
+
+		return {"type": "files", "files": files}
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		var item: int = get_item_at_position(get_local_mouse_position())
+		if item < 0:
+			return null
+
+		var asset: Dictionary = get_item_metadata(item)
+		if asset.is_empty():
+			return null
+
+		var vbox := VBoxContainer.new()
+
+		var thumb_rect := TextureRect.new()
+		thumb_rect.set_expand_mode(TextureRect.EXPAND_IGNORE_SIZE)
+		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
+		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
+		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
+		thumb_rect.set_texture(asset["thumb"])
+		vbox.add_child(thumb_rect)
+
+		var label := Label.new()
+		label.set_text(asset["path"])
+		vbox.add_child(label)
+
+		return vbox
