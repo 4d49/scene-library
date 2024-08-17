@@ -18,7 +18,7 @@ class AssetItemList extends ItemList:
 		var vbox := VBoxContainer.new()
 		var num_rows := mini(files.size(), MAX_ROWS)
 
-		for i in num_rows:
+		for i: int in num_rows:
 			var hbox := HBoxContainer.new()
 			vbox.add_child(hbox)
 
@@ -45,7 +45,7 @@ class AssetItemList extends ItemList:
 			return null
 
 		var files := PackedStringArray()
-		for i in get_selected_items():
+		for i: int in get_selected_items():
 			var asset: Dictionary = get_item_metadata(i)
 			files.push_back(asset["path"])
 
@@ -128,8 +128,8 @@ enum AssetContextMenu {
 const NULL_LIBRARY: Dictionary = {}
 const NULL_COLLECTION: Array[Dictionary] = []
 
-const THUMB_GRID_SIZE = 192
-const THUMB_LIST_SIZE = 48
+const THUMB_GRID_SIZE: int = 192
+const THUMB_LIST_SIZE: int = 48
 
 
 var _main_vbox: VBoxContainer = null
@@ -181,7 +181,7 @@ var _mutex: Mutex = null
 var _thread: Thread = null
 var _thread_queue: Array[Dictionary] = []
 var _thread_sem: Semaphore = null
-var _thread_work := true
+var _thread_work: bool = true
 
 # INFO: Use key-value pairs to store collections.
 var _curr_lib: Dictionary = NULL_LIBRARY # {String: Array[Dictionary]}
@@ -196,7 +196,7 @@ var _curr_collec_map: Dictionary = {} # {int: Dictionary}
 
 func _update_position_new_collection_btn() -> void:
 	var tab_bar_total_width := float(_collec_tab_bar.get_theme_constant(&"h_separation"))
-	for i in _collec_tab_bar.get_tab_count():
+	for i: int in _collec_tab_bar.get_tab_count():
 		tab_bar_total_width += _collec_tab_bar.get_tab_rect(i).size.x
 
 	_collec_tab_bar.size = Vector2(minf(_collec_tab_bar.size.x, tab_bar_total_width), 0.0)
@@ -469,7 +469,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	var files: PackedStringArray = data["files"]
 	var rec_ext: PackedStringArray = ResourceLoader.get_recognized_extensions_for_type("PackedScene")
 
-	for file in files:
+	for file: String in files:
 		var extension: String = file.get_extension().to_lower()
 		if not rec_ext.has(extension):
 			return false
@@ -484,7 +484,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	if data is Dictionary:
 		var files: PackedStringArray = data["files"]
 
-		for path in files:
+		for path: String in files:
 			create_asset(path)
 
 
@@ -586,7 +586,7 @@ func remove_asset(id: int) -> void:
 	if not _curr_collec_map.erase(id):
 		return
 
-	for i in _curr_collec.size():
+	for i: int in _curr_collec.size():
 		if _curr_collec[i]["id"] == id:
 			_curr_collec.remove_at(i)
 			collection_changed.emit()
@@ -616,7 +616,7 @@ func _sort_collection(collection: Array[Dictionary], sort_mode: SortMode) -> voi
 func _update_collection_map() -> void:
 	_curr_collec_map.clear()
 
-	for asset in _curr_collec:
+	for asset: Dictionary in _curr_collec:
 		_curr_collec_map[asset["id"]] = asset
 
 	_curr_collec.assign(_curr_collec_map.values())
@@ -695,7 +695,7 @@ func update_item_list() -> void:
 
 	var is_list_mode: bool = _asset_display_mode == DisplayMode.LIST
 
-	for i in collec.size():
+	for i: int in collec.size():
 		var asset: Dictionary = collec[i]
 		var path: String = asset["path"]
 
@@ -818,10 +818,10 @@ func _load_cfg(path: String) -> Dictionary:
 
 	var library: Dictionary = {}
 
-	for key in config.get_section_keys(""):
+	for key: String in config.get_section_keys(""):
 		var collection: Array[Dictionary] = config.get_value("", key)
 
-		for i in collection.size():
+		for i: int in collection.size():
 			var asset: Dictionary = _deserialize_asset(collection[i])
 			if asset.is_empty(): # Skip invalid assets.
 				continue
@@ -898,7 +898,7 @@ func _cfg_serialize_collection(collection: Array[Dictionary]) -> Array[Dictionar
 	@warning_ignore("return_value_discarded")
 	serialized.resize(collection.size())
 
-	for i in serialized.size():
+	for i: int in serialized.size():
 		serialized[i] = _serialize_asset(collection[i])
 
 	return serialized
@@ -917,7 +917,7 @@ func _json_serialize_collection(collection: Array[Dictionary]) -> Array[Dictiona
 	@warning_ignore("return_value_discarded")
 	serialized.resize(collection.size())
 
-	for i in serialized.size():
+	for i: int in serialized.size():
 		serialized[i] = _serialize_asset(collection[i])
 
 	return serialized
@@ -1143,7 +1143,7 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	for key: String in _curr_lib:
 		var collec: Array[Dictionary] = _curr_lib[key]
 
-		for asset in collec:
+		for asset: Dictionary in collec:
 			if asset["path"] == old_file:
 				asset["path"] = new_file
 				break
@@ -1159,7 +1159,7 @@ func handle_file_removed(file: String) -> void:
 	for key: String in _curr_lib:
 		var collec: Array[Dictionary] = _curr_lib[key]
 
-		for i in collec.size():
+		for i: int in collec.size():
 			var asset: Dictionary = collec[i]
 
 			if asset["path"] == file:
@@ -1339,7 +1339,7 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
 		_item_list.set_max_text_lines(2)
 
-		for i in _item_list.get_item_count():
+		for i: int in _item_list.get_item_count():
 			var asset: Dictionary = _item_list.get_item_metadata(i)
 			_item_list.set_item_icon(i, asset["thumb"])
 
@@ -1349,7 +1349,7 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
 		_item_list.set_max_text_lines(1)
 
-		for i in _item_list.get_item_count():
+		for i: int in _item_list.get_item_count():
 			var asset: Dictionary = _item_list.get_item_metadata(i)
 			_item_list.set_item_icon(i, asset["thumb_small"])
 
