@@ -134,7 +134,7 @@ static func _def_setting(name: String, value: Variant) -> Variant:
 	ProjectSettings.set_initial_value(name, value)
 	return ProjectSettings.get_setting_with_override(name)
 
-@warning_ignore("narrowing_conversion", "return_value_discarded", "unsafe_method_access")
+@warning_ignore("narrowing_conversion", "unsafe_method_access")
 func _enter_tree() -> void:
 	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
 	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
@@ -688,7 +688,6 @@ func get_sort_mode() -> SortMode:
 	return _sort_mode
 
 
-@warning_ignore("return_value_discarded")
 func show_create_collection_dialog() -> AcceptDialog:
 	var window := AcceptDialog.new()
 	window.set_size(Vector2i.ZERO)
@@ -967,7 +966,6 @@ func _create_thumb() -> void:
 	var texture: Texture2D = _viewport.get_texture()
 	thumb_created.emit(texture)
 
-@warning_ignore("return_value_discarded")
 func _thread_process() -> void:
 	var semaphore := Semaphore.new()
 
@@ -1079,7 +1077,6 @@ func _on_collection_tab_close_pressed(tab: int) -> void:
 	remove_collection(tab)
 
 
-@warning_ignore("return_value_discarded")
 func _on_collection_tab_rmb_clicked(tab: int) -> void:
 	var collection: Dictionary = _collec_tab_bar.get_tab_metadata(tab)
 
@@ -1185,7 +1182,6 @@ func _create_file_dialog(open: bool) -> ConfirmationDialog:
 		file_dialog.add_filter("*.json", "JSON File")
 		dialog = file_dialog
 
-	@warning_ignore("return_value_discarded")
 	dialog.set_exclusive(true)
 
 	return dialog
@@ -1193,7 +1189,6 @@ func _create_file_dialog(open: bool) -> ConfirmationDialog:
 func _popup_file_dialog(window: Window) -> void:
 	window.popup_centered_clamped(Vector2(1050, 700) * DisplayServer.screen_get_scale(), 0.8)
 
-@warning_ignore("return_value_discarded")
 func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 	match option:
 		# TODO: Add a feature to check if the current library is saved.
@@ -1300,7 +1295,6 @@ func _on_item_list_gui_input(event: InputEvent) -> void:
 
 		accept_event()
 
-@warning_ignore("return_value_discarded")
 func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_index: int) -> void:
 	if mouse_button_index != MOUSE_BUTTON_RIGHT:
 		return
