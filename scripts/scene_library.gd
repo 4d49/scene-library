@@ -164,6 +164,7 @@ func _enter_tree() -> void:
 
 	_collec_tab_bar = TabBar.new()
 	_collec_tab_bar.set_auto_translate(false)
+	_collec_tab_bar.set_drag_to_rearrange_enabled(true)
 	_collec_tab_bar.set_h_size_flags(Control.SIZE_EXPAND_FILL)
 	_collec_tab_bar.set_max_tab_width(256) # TODO: Make this parameter receive global editor settings.
 	_collec_tab_bar.set_theme_type_variation(&"TabContainer")
@@ -175,6 +176,7 @@ func _enter_tree() -> void:
 	_collec_tab_bar.tab_selected.connect(_on_collection_tab_changed)
 	_collec_tab_bar.tab_close_pressed.connect(_on_collection_tab_close_pressed)
 	_collec_tab_bar.tab_rmb_clicked.connect(_on_collection_tab_rmb_clicked)
+	_collec_tab_bar.active_tab_rearranged.connect(_on_collection_tab_rearranged)
 	_collec_hbox.add_child(_collec_tab_bar)
 
 	_collec_tab_add = Button.new()
@@ -1139,6 +1141,11 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 		popup.add_item("Delete Collection", CollectionTabMenu.DELETE)
 
 	popup.popup(Rect2i(get_screen_position() + get_local_mouse_position(), Vector2i.ZERO))
+
+
+func _on_collection_tab_rearranged(_to_idx: int) -> void:
+	for i: int in _collec_tab_bar.get_tab_count():
+		_curr_lib[i] = _collec_tab_bar.get_tab_metadata(i)
 
 
 func _create_file_dialog(open: bool) -> ConfirmationDialog:
