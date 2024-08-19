@@ -108,6 +108,7 @@ var _thread_queue: Array[Dictionary] = []
 var _thread_sem: Semaphore = null
 var _thread_work: bool = true
 
+var _saved: bool = true
 # INFO: Use key-value pairs to store collections.
 var _curr_lib: Array[Dictionary] = NULL_LIBRARY # {String: Array[Dictionary]}
 var _curr_lib_path: String = ""
@@ -296,6 +297,7 @@ func _enter_tree() -> void:
 	_save_timer.set_one_shot(true)
 	_save_timer.set_wait_time(10.0) # Save unsaved data every 10 seconds.
 	_save_timer.timeout.connect(_on_save_timer_timeout)
+	library_unsaved.connect(_save_timer.start)
 	self.add_child(_save_timer)
 
 	var world_2d := World2D.new()
@@ -356,11 +358,8 @@ func _enter_tree() -> void:
 	_thread.start(_thread_process)
 
 	library_changed.connect(update_tabs)
-	library_changed.connect(_emit_unsaved)
 
 	collection_changed.connect(update_item_list)
-	collection_changed.connect(_save_timer.start)
-	collection_changed.connect(_emit_unsaved)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
 	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://.godot/scene_library.cfg")
@@ -411,6 +410,18 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 			create_asset(path)
 
 
+func mark_saved() -> void:
+	library_saved.emit()
+	_saved = true
+
+func mark_unsaved() -> void:
+	library_unsaved.emit()
+	_saved = false
+
+func is_saved() -> bool:
+	return _saved
+
+
 func set_current_library(library: Array[Dictionary]) -> void:
 	if is_same(_curr_lib, library):
 		return
@@ -452,7 +463,9 @@ func create_collection(collection_name: String) -> void:
 	}
 
 	_curr_lib.push_back(new_collection)
+
 	library_changed.emit()
+	mark_unsaved()
 
 	# Switch to the last tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_tab_count() - 1)
@@ -460,7 +473,9 @@ func create_collection(collection_name: String) -> void:
 
 func remove_collection(index: int) -> void:
 	_curr_lib.remove_at(index)
+
 	library_changed.emit()
+	mark_unsaved()
 
 	# Swith to the prev tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
@@ -535,6 +550,7 @@ func create_asset(path: String) -> void:
 	assets.push_back(new_asset)
 
 	collection_changed.emit()
+	mark_unsaved()
 
 
 func remove_asset(id: int) -> bool:
@@ -545,7 +561,9 @@ func remove_asset(id: int) -> bool:
 			continue
 
 		assets.remove_at(i)
+
 		collection_changed.emit()
+		mark_unsaved()
 
 		return true
 
@@ -779,7 +797,7 @@ func save_library(path: String) -> void:
 	else:
 		return
 
-	library_saved.emit()
+	mark_saved()
 
 
 func _deserialize_asset(asset: Dictionary) -> Dictionary:
@@ -1119,6 +1137,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				rename_collec_window.confirmed.connect(func() -> void:
 					collection["name"] = line_edit.get_text()
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
+					mark_unsaved()
 				)
 
 				self.add_child(rename_collec_window)
@@ -1187,13 +1206,10 @@ func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 		LibraryMenu.OPEN:
 			_popup_file_dialog(_open_dialog)
 
-		LibraryMenu.SAVE:
-			if _curr_lib_path.is_empty():
-				_on_collection_option_id_pressed(LibraryMenu.SAVE_AS)
-			else:
-				save_library(_curr_lib_path)
+		LibraryMenu.SAVE when not _curr_lib_path.is_empty():
+			save_library(_curr_lib_path)
 
-		LibraryMenu.SAVE_AS:
+		LibraryMenu.SAVE, LibraryMenu.SAVE_AS:
 			_popup_file_dialog(_save_dialog)
 
 
@@ -1320,6 +1336,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 						assets.remove_at(i)
 
 				collection_changed.emit()
+				mark_unsaved()
 
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
 				var asset: Dictionary = _item_list.get_item_metadata(selected_assets[0])
@@ -1366,11 +1383,6 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 func _on_item_list_item_activated(index: int) -> void:
 	var asset: Dictionary = _item_list.get_item_metadata(index)
 	open_asset_request.emit(asset["path"])
-
-
-func _emit_unsaved() -> void:
-	if _curr_lib_path.is_empty():
-		library_unsaved.emit()
 
 
 func _on_save_timer_timeout() -> void:
