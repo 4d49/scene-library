@@ -480,6 +480,26 @@ func remove_collection(index: int) -> void:
 	# Swith to the prev tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
+func show_remove_collection_dialog(index: int) -> void:
+	var assets: Array[Dictionary] = _curr_lib[index]["assets"]
+	if assets.is_empty():
+		return remove_collection(index)
+
+	var window := ConfirmationDialog.new()
+	window.set_size(Vector2i.ZERO)
+	window.set_flag(Window.FLAG_RESIZE_DISABLED, true)
+	window.focus_exited.connect(window.queue_free)
+	window.confirmed.connect(remove_collection.bind(index))
+
+	window.set_ok_button_text("Remove")
+
+	var label := Label.new()
+	label.set_text("Are you sure you want to delete this collection? (Cannot be undone.)")
+	window.add_child(label)
+
+	self.add_child(window)
+	window.popup_centered(Vector2i(300, 0))
+
 
 func _queue_update_thumbnail(id: int) -> void:
 	if not _thumbnails.has(id):
@@ -1074,7 +1094,7 @@ func _on_collection_tab_changed(tab: int) -> void:
 
 
 func _on_collection_tab_close_pressed(tab: int) -> void:
-	remove_collection(tab)
+	show_remove_collection_dialog(tab)
 
 
 func _on_collection_tab_rmb_clicked(tab: int) -> void:
@@ -1142,7 +1162,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				line_edit.grab_focus()
 
 			CollectionTabMenu.DELETE:
-				remove_collection(tab)
+				show_remove_collection_dialog(tab)
 		)
 	popup.focus_exited.connect(popup.queue_free)
 	self.add_child(popup)
