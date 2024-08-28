@@ -362,7 +362,7 @@ func _enter_tree() -> void:
 	collection_changed.connect(update_item_list)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://.godot/scene_library.cfg")
+	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://addons/scene-library/scene_library.cfg")
 	load_library(_curr_lib_path)
 
 	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
