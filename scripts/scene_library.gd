@@ -834,7 +834,9 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary:
 		id = ResourceLoader.get_resource_uid(path)
 		uid = ResourceUID.id_to_text(id)
 
-		ResourceUID.add_id(id, path)
+		if not ResourceUID.has_id(id):
+			ResourceUID.add_id(id, path)
+
 	# Invalid assset.
 	else:
 		return {}
