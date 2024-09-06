@@ -1018,8 +1018,9 @@ func _thread_process() -> void:
 			if not is_valid_scene_file(path):
 				continue
 
-			var packed_scene: PackedScene = ResourceLoader.load(path, "PackedScene")
-			if not packed_scene.can_instantiate():
+			var packed_scene := ResourceLoader.load(path, "PackedScene") as PackedScene
+			# INFO: Could be null if, for example, the dependencies are broken.
+			if not is_instance_valid(packed_scene) or not packed_scene.can_instantiate():
 				continue
 
 			var instance: Node = packed_scene.instantiate()
