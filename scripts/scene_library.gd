@@ -499,8 +499,19 @@ func show_remove_collection_dialog(index: int) -> void:
 	window.popup_centered(Vector2i(300, 0))
 
 
+func _queue_has_id(id: int) -> bool:
+	_mutex.lock()
+
+	for item: Dictionary in _thread_queue:
+		if item["id"] == id:
+			_mutex.unlock()
+			return true
+
+	_mutex.unlock()
+	return false
+
 func _queue_update_thumbnail(id: int) -> void:
-	if not _thumbnails.has(id):
+	if not _thumbnails.has(id) or _queue_has_id(id):
 		return
 
 	_mutex.lock()
