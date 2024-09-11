@@ -599,20 +599,6 @@ func remove_asset(id: int) -> bool:
 
 	return false
 
-@warning_ignore("unsafe_method_access")
-static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	return a[&"path"].get_file() < b[&"path"].get_file()
-
-@warning_ignore("unsafe_method_access")
-static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	return a[&"path"].get_file() > b[&"path"].get_file()
-
-static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
-	if sort_mode == SortMode.NAME:
-		assets.sort_custom(sort_asset_ascending)
-	else:
-		assets.sort_custom(sort_asset_descending)
-
 
 func set_current_collection(collection: Dictionary[StringName, Variant]) -> void:
 	if is_same(_curr_collec, collection):
@@ -704,6 +690,17 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
+static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+	@warning_ignore("unsafe_method_access")
+	return a[&"path"].get_file() < b[&"path"].get_file()
+static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+	@warning_ignore("unsafe_method_access")
+	return a[&"path"].get_file() > b[&"path"].get_file()
+static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
+	if sort_mode == SortMode.NAME:
+		assets.sort_custom(sort_asset_ascending)
+	else:
+		assets.sort_custom(sort_asset_descending)
 
 func set_sort_mode(sort_mode: SortMode) -> void:
 	if is_same(_sort_mode, sort_mode):
