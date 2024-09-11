@@ -16,8 +16,6 @@ signal show_in_file_system_request(path: String)
 signal show_in_file_manager_request(path: String)
 signal asset_display_mode_changed(display_mode: DisplayMode)
 
-signal thumb_created(texture: Texture2D)
-
 
 enum CollectionTabMenu {
 	NEW,
@@ -501,8 +499,19 @@ func show_remove_collection_dialog(index: int) -> void:
 	window.popup_centered(Vector2i(300, 0))
 
 
+func _queue_has_id(id: int) -> bool:
+	_mutex.lock()
+
+	for item: Dictionary in _thread_queue:
+		if item["id"] == id:
+			_mutex.unlock()
+			return true
+
+	_mutex.unlock()
+	return false
+
 func _queue_update_thumbnail(id: int) -> void:
-	if not _thumbnails.has(id):
+	if not _thumbnails.has(id) or _queue_has_id(id):
 		return
 
 	_mutex.lock()
@@ -835,7 +844,9 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary[StringName, Variant]:
 		id = ResourceLoader.get_resource_uid(path)
 		uid = ResourceUID.id_to_text(id)
 
-		ResourceUID.add_id(id, path)
+		if not ResourceUID.has_id(id):
+			ResourceUID.add_id(id, path)
+
 	# Invalid assset.
 	else:
 		return {}
@@ -980,34 +991,54 @@ func _save_thumb_to_disk(id: int, image: Image) -> void:
 	var error := image.save_png(_get_thumb_cache_path(ResourceUID.get_id_path(id)))
 	assert(error == OK, error_string(error))
 
-func _create_thumb() -> void:
+func _create_thumb(item: Dictionary, callback: Callable) -> void:
+	var path: String = ResourceUID.get_id_path(item["id"])
+	if not is_valid_scene_file(path):
+		return callback.call()
+
+	var packed_scene := ResourceLoader.load(path, "PackedScene") as PackedScene
+	# INFO: Could be null if, for example, the dependencies are broken.
+	if not is_instance_valid(packed_scene) or not packed_scene.can_instantiate():
+		return callback.call()
+
+	var instance: Node = packed_scene.instantiate()
+
+	_viewport.call_deferred(&"add_child", instance)
+	await instance.ready
+
+	if instance is Node2D:
+		_camera_3d.set_current(false)
+		_camera_2d.set_enabled(true)
+		_focus_camera_on_node_2d(instance)
+	else:
+		_camera_2d.set_enabled(false)
+		_camera_3d.set_current(true)
+		_focus_camera_on_node_3d(instance)
+
 	await RenderingServer.frame_pre_draw
 	_viewport.set_update_mode(SubViewport.UPDATE_ONCE)
 
 	await RenderingServer.frame_post_draw
+	var image: Image = _viewport.get_texture().get_image()
 
-	var texture: Texture2D = _viewport.get_texture()
-	thumb_created.emit(texture)
+	image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
+	var thumb_large: ImageTexture = item["thumb"]["large"]
+	thumb_large.update(image)
+
+	if _cache_enabled:
+		_save_thumb_to_disk(item["id"], image)
+
+	image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
+	var thumb_small: ImageTexture = item["thumb"]["small"]
+	thumb_small.update(image)
+
+	instance.call_deferred(&"free")
+	await instance.tree_exited
+
+	callback.call()
 
 func _thread_process() -> void:
 	var semaphore := Semaphore.new()
-
-	var update_thumb := func(texture: Texture2D, item: Dictionary) -> void:
-		if is_instance_valid(texture):
-			var image: Image = texture.get_image()
-
-			image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
-			var thumb_large: ImageTexture = item[&"thumb"][&"large"]
-			thumb_large.update(image)
-
-			if _cache_enabled:
-				_save_thumb_to_disk(item[&"id"], image)
-
-			image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
-			var thumb_small: ImageTexture = item[&"thumb"][&"small"]
-			thumb_small.update(image)
-
-		semaphore.post()
 
 	while _thread_work:
 		if _thread_queue.is_empty():
@@ -1017,36 +1048,11 @@ func _thread_process() -> void:
 			var item: Dictionary[StringName, Variant] = _thread_queue.pop_front()
 			_mutex.unlock()
 
-			var path: String = ResourceUID.get_id_path(item[&"id"])
-			if not is_valid_scene_file(path):
-				continue
-
-			var packed_scene: PackedScene = ResourceLoader.load(path, "PackedScene")
-			if not packed_scene.can_instantiate():
-				continue
-
-			var instance: Node = packed_scene.instantiate()
-			# BUG: https://github.com/godotengine/godot/issues/79637
-			instance.ready.connect(semaphore.post, Object.CONNECT_DEFERRED)
-			_viewport.call_deferred(&"add_child", instance)
+			# This ensures that this method will be executed in the main thread.
+			call_deferred_thread_group(&"_create_thumb", item, semaphore.post)
 			semaphore.wait()
 
-			if instance is Node2D:
-				_camera_3d.call_deferred(&"set_current", false)
-				_camera_2d.call_deferred(&"set_enabled", true)
-				call_deferred(&"_focus_camera_on_node_2d", instance)
-			else:
-				_camera_2d.call_deferred(&"set_enabled", false)
-				_camera_3d.call_deferred(&"set_current", true)
-				call_deferred(&"_focus_camera_on_node_3d", instance)
 
-			call_deferred(&"connect", &"thumb_created", update_thumb.bind(item), Object.CONNECT_ONE_SHOT)
-			call_deferred(&"_create_thumb")
-			semaphore.wait()
-
-			instance.call_deferred(&"connect", &"tree_exited", semaphore.post)
-			instance.queue_free()
-			semaphore.wait()
 
 
 func handle_scene_saved(path: String) -> void:
