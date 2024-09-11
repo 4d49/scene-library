@@ -98,7 +98,7 @@ var _light_3d: DirectionalLight3D = null
 var _asset_display_mode: DisplayMode = DisplayMode.THUMBNAILS
 var _sort_mode: SortMode = SortMode.NAME
 
-var _thumbnails: Dictionary[int, Dictionary] = {} # Dictionary[int, Dictionary[StringName, ImageTexture]]
+var _thumbnails: Dictionary[int, ImageTexture] = {}
 
 var _mutex: Mutex = null
 var _thread: Thread = null
@@ -267,12 +267,13 @@ func _enter_tree() -> void:
 	_top_hbox.add_child(_mode_list_btn)
 
 	_item_list = AssetItemList.new()
-	_item_list.set_v_size_flags(Control.SIZE_EXPAND_FILL)
-	_item_list.set_mouse_filter(Control.MOUSE_FILTER_PASS)
 	_item_list.set_focus_mode(Control.FOCUS_CLICK)
-	_item_list.set_select_mode(ItemList.SELECT_MULTI)
 	_item_list.set_max_columns(0)
+	_item_list.set_mouse_filter(Control.MOUSE_FILTER_PASS)
 	_item_list.set_same_column_width(true)
+	_item_list.set_select_mode(ItemList.SELECT_MULTI)
+	_item_list.set_texture_filter(CanvasItem.TEXTURE_FILTER_LINEAR)
+	_item_list.set_v_size_flags(Control.SIZE_EXPAND_FILL)
 	_item_list.gui_input.connect(_on_item_list_gui_input)
 	_item_list.item_clicked.connect(_on_item_list_item_clicked)
 	_item_list.item_activated.connect(_on_item_list_item_activated)
@@ -521,38 +522,29 @@ func _queue_update_thumbnail(id: int) -> void:
 
 	_thread_sem.post()
 
-func _get_or_create_thumbnail(id: int, path: String) -> Dictionary[StringName, ImageTexture]:
-	if _thumbnails.has(id):
-		return _thumbnails[id]
-
-	var new_thumb: Dictionary[StringName, ImageTexture] = {&"large": null, &"small": null}
-	_thumbnails[id] = new_thumb
+func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
+	var thumb: ImageTexture = _thumbnails.get(id, null)
+	if is_instance_valid(thumb):
+		return thumb
 
 	var cache_path: String = _get_thumb_cache_path(path)
-
 	if _cache_enabled and FileAccess.file_exists(cache_path):
-		var image := Image.load_from_file(cache_path)
-		new_thumb[&"large"] = ImageTexture.create_from_image(image)
-
-		image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
-		new_thumb[&"small"] = ImageTexture.create_from_image(image)
+		thumb = ImageTexture.create_from_image(Image.load_from_file(cache_path))
+		_thumbnails[id] = thumb
 	else:
-		new_thumb[&"large"] = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_large.svg")))
-		new_thumb[&"small"] = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_small.svg")))
+		thumb = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_placeholder.svg")))
+		_thumbnails[id] = thumb
 
 		_queue_update_thumbnail(id)
 
-	new_thumb.make_read_only()
-	return new_thumb
+	return thumb
 
 func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName, Variant]:
-	var thumb: Dictionary[StringName, ImageTexture] = _get_or_create_thumbnail(id, path)
 	var asset: Dictionary[StringName, Variant] = {
 		&"id": id,
 		&"uid": uid,
 		&"path": path,
-		&"thumb": thumb[&"large"],
-		&"thumb_small": thumb[&"small"],
+		&"thumb": _get_or_create_thumbnail(id, path),
 	}
 	return asset
 
@@ -668,7 +660,7 @@ func update_item_list() -> void:
 			continue
 
 		_item_list.set_item_text(index, path.get_file().get_basename())
-		_item_list.set_item_icon(index, asset[&"thumb_small"] if is_list_mode else asset[&"thumb"])
+		_item_list.set_item_icon(index, asset[&"thumb"])
 		# NOTE: This tooltip will be hidden because used the custom tooltip.
 		_item_list.set_item_tooltip(index, path)
 		_item_list.set_item_metadata(index, asset)
@@ -1016,18 +1008,15 @@ func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) ->
 	_viewport.set_update_mode(SubViewport.UPDATE_ONCE)
 
 	await RenderingServer.frame_post_draw
-	var image: Image = _viewport.get_texture().get_image()
 
+	var image: Image = _viewport.get_texture().get_image()
 	image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
-	var thumb_large: ImageTexture = item[&"thumb"][&"large"]
-	thumb_large.update(image)
+
+	var thumb: ImageTexture = item[&"thumb"]
+	thumb.update(image)
 
 	if _cache_enabled:
 		_save_thumb_to_disk(item[&"id"], image)
-
-	image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
-	var thumb_small: ImageTexture = item[&"thumb"][&"small"]
-	thumb_small.update(image)
 
 	instance.call_deferred(&"free")
 	await instance.tree_exited
@@ -1254,21 +1243,17 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 		_item_list.set_icon_mode(ItemList.ICON_MODE_TOP)
 		_item_list.set_max_text_lines(2)
 
-		for i: int in _item_list.get_item_count():
-			var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset[&"thumb"])
-
 		_mode_thumb_btn.set_pressed_no_signal(true)
 	else:
 		_item_list.set_max_columns(0)
 		_item_list.set_icon_mode(ItemList.ICON_MODE_LEFT)
 		_item_list.set_max_text_lines(1)
 
-		for i: int in _item_list.get_item_count():
-			var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
-			_item_list.set_item_icon(i, asset[&"thumb_small"])
-
 		_mode_list_btn.set_pressed_no_signal(true)
+
+	for i: int in _item_list.get_item_count():
+		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
+		_item_list.set_item_icon(i, asset[&"thumb"])
 
 	_update_thumb_icon_size(display_mode)
 
