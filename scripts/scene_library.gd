@@ -1094,8 +1094,7 @@ func handle_file_removed(file: String) -> void:
 
 
 func _on_collection_tab_changed(tab: int) -> void:
-	var metadata: Dictionary[StringName, Variant] = _collec_tab_bar.get_tab_metadata(tab)
-	set_current_collection(metadata)
+	set_current_collection(_collec_tab_bar.get_tab_metadata(tab))
 
 
 func _on_collection_tab_close_pressed(tab: int) -> void:
