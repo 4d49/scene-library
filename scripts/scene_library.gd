@@ -98,7 +98,7 @@ var _light_3d: DirectionalLight3D = null
 var _asset_display_mode: DisplayMode = DisplayMode.THUMBNAILS
 var _sort_mode: SortMode = SortMode.NAME
 
-var _thumbnails: Dictionary[int, Dictionary] = {}
+var _thumbnails: Dictionary[int, Dictionary] = {} # Dictionary[int, Dictionary[StringName, ImageTexture]]
 
 var _mutex: Mutex = null
 var _thread: Thread = null
@@ -108,7 +108,7 @@ var _thread_work: bool = true
 
 var _saved: bool = true
 # INFO: Use key-value pairs to store collections.
-var _curr_lib: Array[Dictionary] = NULL_LIBRARY
+var _curr_lib: Array[Dictionary] = NULL_LIBRARY # Array[Dictionary[StringName, ImageTexture]]
 var _curr_lib_path: String = ""
 
 var _curr_collec: Dictionary[StringName, Variant] = NULL_COLLECTION
@@ -502,8 +502,8 @@ func show_remove_collection_dialog(index: int) -> void:
 func _queue_has_id(id: int) -> bool:
 	_mutex.lock()
 
-	for item: Dictionary in _thread_queue:
-		if item["id"] == id:
+	for item: Dictionary[StringName, Variant] in _thread_queue:
+		if item[&"id"] == id:
 			_mutex.unlock()
 			return true
 
@@ -988,8 +988,8 @@ func _save_thumb_to_disk(id: int, image: Image) -> void:
 	var error := image.save_png(_get_thumb_cache_path(ResourceUID.get_id_path(id)))
 	assert(error == OK, error_string(error))
 
-func _create_thumb(item: Dictionary, callback: Callable) -> void:
-	var path: String = ResourceUID.get_id_path(item["id"])
+func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) -> void:
+	var path: String = ResourceUID.get_id_path(item[&"id"])
 	if not is_valid_scene_file(path):
 		return callback.call()
 
@@ -1019,14 +1019,14 @@ func _create_thumb(item: Dictionary, callback: Callable) -> void:
 	var image: Image = _viewport.get_texture().get_image()
 
 	image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
-	var thumb_large: ImageTexture = item["thumb"]["large"]
+	var thumb_large: ImageTexture = item[&"thumb"][&"large"]
 	thumb_large.update(image)
 
 	if _cache_enabled:
-		_save_thumb_to_disk(item["id"], image)
+		_save_thumb_to_disk(item[&"id"], image)
 
 	image.resize(THUMB_LIST_SIZE, THUMB_LIST_SIZE, Image.INTERPOLATE_LANCZOS)
-	var thumb_small: ImageTexture = item["thumb"]["small"]
+	var thumb_small: ImageTexture = item[&"thumb"][&"small"]
 	thumb_small.update(image)
 
 	instance.call_deferred(&"free")
@@ -1397,7 +1397,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 
 func _on_item_list_item_activated(index: int) -> void:
-	var asset: Dictionary = _item_list.get_item_metadata(index)
+	var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(index)
 	open_asset_request.emit(asset[&"path"])
 
 
@@ -1452,7 +1452,7 @@ class AssetItemList extends ItemList:
 
 		var files := PackedStringArray()
 		for i: int in get_selected_items():
-			var asset: Dictionary = get_item_metadata(i)
+			var asset: Dictionary[StringName, Variant] = get_item_metadata(i)
 			files.push_back(asset[&"path"])
 
 		set_drag_preview(_create_drag_preview(files))
@@ -1464,7 +1464,7 @@ class AssetItemList extends ItemList:
 		if item < 0:
 			return null
 
-		var asset: Dictionary = get_item_metadata(item)
+		var asset: Dictionary[StringName, Variant] = get_item_metadata(item)
 		if asset.is_empty():
 			return null
 
