@@ -3,7 +3,7 @@
 Add-on for easy and fast work with scenes as assets. Both 3D and 2D scenes are supported
 
 > [!IMPORTANT]
-> Only Godot 4.3+ is supported.
+> Only Godot 4.4+ is supported.
 
 > [!WARNING]
 > The add-on is still under development and needs testing!
