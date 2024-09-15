@@ -446,7 +446,7 @@ func get_current_library_path() -> String:
 
 
 func has_collection(collection_name: String) -> bool:
-	for collection: Dictionary[StringName, Variant] in get_current_library():
+	for collection: Dictionary in get_current_library():
 		if collection[&"name"] == collection_name:
 			return true
 
@@ -503,7 +503,7 @@ func show_remove_collection_dialog(index: int) -> void:
 func _queue_has_id(id: int) -> bool:
 	_mutex.lock()
 
-	for item: Dictionary[StringName, Variant] in _thread_queue:
+	for item: Dictionary in _thread_queue:
 		if item[&"id"] == id:
 			_mutex.unlock()
 			return true
@@ -606,7 +606,7 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
-	for asset: Dictionary[StringName, Variant] in _curr_collec[&"assets"]:
+	for asset: Dictionary in _curr_collec[&"assets"]:
 		if asset[&"path"] == path:
 			return true
 
@@ -654,7 +654,7 @@ func update_item_list() -> void:
 	var filter: String = _asset_filter_line.get_text()
 
 	var index: int = 0
-	for asset: Dictionary[StringName, Variant] in assets:
+	for asset: Dictionary in assets:
 		var path: String = asset[&"path"]
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
@@ -1051,8 +1051,8 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	if not _thumbnails.has(ResourceLoader.get_resource_uid(new_file)):
 		return
 
-	for collection: Dictionary[StringName, Variant] in _curr_lib:
-		for asset: Dictionary[StringName, Variant] in collection[&"assets"]:
+	for collection: Dictionary in _curr_lib:
+		for asset: Dictionary in collection[&"assets"]:
 			if asset[&"path"] == old_file:
 				asset[&"path"] = new_file
 				break
@@ -1065,7 +1065,7 @@ func handle_file_removed(file: String) -> void:
 	# Because we can't use UID for deleted files.
 	# And we have to go through all collections and assets.
 	var removed: int = 0
-	for collection: Dictionary[StringName, Variant] in _curr_lib:
+	for collection: Dictionary in _curr_lib:
 		var assets: Array[Dictionary] = collection[&"assets"]
 
 		for i: int in assets.size():
