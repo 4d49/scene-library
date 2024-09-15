@@ -447,7 +447,7 @@ func get_current_library_path() -> String:
 
 func has_collection(collection_name: String) -> bool:
 	for collection: Dictionary in get_current_library():
-		if collection[&"name"] == collection_name:
+		if collection.name == collection_name:
 			return true
 
 	return false
@@ -480,7 +480,7 @@ func remove_collection(index: int) -> void:
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
 func show_remove_collection_dialog(index: int) -> void:
-	var assets: Array[Dictionary] = _curr_lib[index][&"assets"]
+	var assets: Array[Dictionary] = _curr_lib[index].assets
 	if assets.is_empty():
 		return remove_collection(index)
 
@@ -504,7 +504,7 @@ func _queue_has_id(id: int) -> bool:
 	_mutex.lock()
 
 	for item: Dictionary in _thread_queue:
-		if item[&"id"] == id:
+		if item.id == id:
 			_mutex.unlock()
 			return true
 
@@ -568,7 +568,7 @@ func create_asset(path: String) -> void:
 	var id: int = get_or_create_valid_uid(path)
 	var new_asset: Dictionary[StringName, Variant] = _create_asset(id, ResourceUID.id_to_text(id), path)
 
-	var assets: Array[Dictionary] = _curr_collec[&"assets"]
+	var assets: Array[Dictionary] = _curr_collec.assets
 	assets.push_back(new_asset)
 
 	collection_changed.emit()
@@ -576,10 +576,10 @@ func create_asset(path: String) -> void:
 
 
 func remove_asset(id: int) -> bool:
-	var assets: Array[Dictionary] = _curr_collec[&"assets"]
+	var assets: Array[Dictionary] = _curr_collec.assets
 
 	for i: int in assets.size():
-		if assets[i][&"id"] != id:
+		if assets[i].id != id:
 			continue
 
 		assets.remove_at(i)
@@ -606,8 +606,8 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
-	for asset: Dictionary in _curr_collec[&"assets"]:
-		if asset[&"path"] == path:
+	for asset: Dictionary in _curr_collec.assets:
+		if asset.path == path:
 			return true
 
 	return false
@@ -630,11 +630,11 @@ func update_tabs() -> void:
 		popup.set_item_count(_curr_lib.size())
 
 		for i: int in _curr_lib.size():
-			_collec_tab_bar.set_tab_title(i, _curr_lib[i][&"name"])
+			_collec_tab_bar.set_tab_title(i, _curr_lib[i].name)
 			_collec_tab_bar.set_tab_disabled(i, false)
 			_collec_tab_bar.set_tab_metadata(i, _curr_lib[i])
 
-			popup.set_item_text(i, _curr_lib[i][&"name"])
+			popup.set_item_text(i, _curr_lib[i].name)
 	else:
 		_collec_tab_bar.set_tab_count(1)
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
@@ -647,7 +647,7 @@ func update_tabs() -> void:
 
 @warning_ignore("unsafe_call_argument")
 func update_item_list() -> void:
-	var assets: Array[Dictionary] = _curr_collec[&"assets"]
+	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
 
 	var is_list_mode: bool = _asset_display_mode == DisplayMode.LIST
@@ -655,12 +655,12 @@ func update_item_list() -> void:
 
 	var index: int = 0
 	for asset: Dictionary in assets:
-		var path: String = asset[&"path"]
+		var path: String = asset.path
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
 
 		_item_list.set_item_text(index, path.get_file().get_basename())
-		_item_list.set_item_icon(index, asset[&"thumb"])
+		_item_list.set_item_icon(index, asset.thumb)
 		# NOTE: This tooltip will be hidden because used the custom tooltip.
 		_item_list.set_item_tooltip(index, path)
 		_item_list.set_item_metadata(index, asset)
@@ -684,10 +684,10 @@ func get_asset_display_mode() -> DisplayMode:
 
 static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
 	@warning_ignore("unsafe_method_access")
-	return a[&"path"].get_file() < b[&"path"].get_file()
+	return a.path.get_file() < b.path.get_file()
 static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
 	@warning_ignore("unsafe_method_access")
-	return a[&"path"].get_file() > b[&"path"].get_file()
+	return a.path.get_file() > b.path.get_file()
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
 	if sort_mode == SortMode.NAME:
 		assets.sort_custom(sort_asset_ascending)
@@ -699,7 +699,7 @@ func set_sort_mode(sort_mode: SortMode) -> void:
 		return
 
 	_sort_mode = sort_mode
-	sort_assets(_curr_collec[&"assets"], sort_mode)
+	sort_assets(_curr_collec.assets, sort_mode)
 
 	collection_changed.emit()
 
@@ -759,7 +759,7 @@ func show_create_collection_dialog() -> AcceptDialog:
 
 
 func _serialize_asset(asset: Dictionary[StringName, Variant]) -> Dictionary:
-	return {"uid": asset[&"uid"], "path": asset[&"path"]}
+	return {"uid": asset.uid, "path": asset.path}
 
 func _serialize_assets(assets: Array[Dictionary]) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
@@ -772,8 +772,8 @@ func _serialize_assets(assets: Array[Dictionary]) -> Array[Dictionary]:
 
 func _serialize_collection(collection: Dictionary[StringName, Variant]) -> Dictionary:
 	return {
-		"name": collection[&"name"],
-		"assets": _serialize_assets(collection[&"assets"]),
+		"name": collection.name,
+		"assets": _serialize_assets(collection.assets),
 	}
 
 func _serialize_library(library: Array[Dictionary]) -> Array[Dictionary]:
@@ -981,7 +981,7 @@ func _save_thumb_to_disk(id: int, image: Image) -> void:
 	assert(error == OK, error_string(error))
 
 func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) -> void:
-	var path: String = ResourceUID.get_id_path(item[&"id"])
+	var path: String = ResourceUID.get_id_path(item.id)
 	if not is_valid_scene_file(path):
 		return callback.call()
 
@@ -1012,11 +1012,11 @@ func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) ->
 	var image: Image = _viewport.get_texture().get_image()
 	image.resize(THUMB_GRID_SIZE, THUMB_GRID_SIZE, Image.INTERPOLATE_LANCZOS)
 
-	var thumb: ImageTexture = item[&"thumb"]
+	var thumb: ImageTexture = item.thumb
 	thumb.update(image)
 
 	if _cache_enabled:
-		_save_thumb_to_disk(item[&"id"], image)
+		_save_thumb_to_disk(item.id, image)
 
 	instance.call_deferred(&"free")
 	await instance.tree_exited
@@ -1052,9 +1052,9 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 		return
 
 	for collection: Dictionary in _curr_lib:
-		for asset: Dictionary in collection[&"assets"]:
-			if asset[&"path"] == old_file:
-				asset[&"path"] = new_file
+		for asset: Dictionary in collection.assets:
+			if asset.path == old_file:
+				asset.path = new_file
 				break
 
 	collection_changed.emit()
@@ -1066,10 +1066,10 @@ func handle_file_removed(file: String) -> void:
 	# And we have to go through all collections and assets.
 	var removed: int = 0
 	for collection: Dictionary in _curr_lib:
-		var assets: Array[Dictionary] = collection[&"assets"]
+		var assets: Array[Dictionary] = collection.assets
 
 		for i: int in assets.size():
-			if assets[i][&"path"] != file:
+			if assets[i].path != file:
 				continue
 
 			assets.remove_at(i)
@@ -1100,7 +1100,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				show_create_collection_dialog()
 
 			CollectionTabMenu.RENAME:
-				var old_name: String = collection[&"name"]
+				var old_name: String = collection.name
 
 				var rename_collec_window := AcceptDialog.new()
 				rename_collec_window.set_size(Vector2i.ZERO)
@@ -1145,7 +1145,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				vbox.add_child(line_edit)
 
 				rename_collec_window.confirmed.connect(func() -> void:
-					collection[&"name"] = line_edit.get_text()
+					collection.name = line_edit.get_text()
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
 					mark_unsaved()
 				)
@@ -1253,7 +1253,7 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 
 	for i: int in _item_list.get_item_count():
 		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
-		_item_list.set_item_icon(i, asset[&"thumb"])
+		_item_list.set_item_icon(i, asset.thumb)
 
 	_update_thumb_icon_size(display_mode)
 
@@ -1318,16 +1318,16 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 		match option:
 			AssetContextMenu.OPEN_ASSET:
-				open_asset_request.emit(asset[&"path"])
+				open_asset_request.emit(asset.path)
 
 			AssetContextMenu.COPY_PATH:
-				DisplayServer.clipboard_set(asset[&"path"])
+				DisplayServer.clipboard_set(asset.path)
 
 			AssetContextMenu.COPY_UID:
-				DisplayServer.clipboard_set(asset[&"uid"])
+				DisplayServer.clipboard_set(asset.uid)
 
 			AssetContextMenu.DELETE_ASSET:
-				var assets: Array[Dictionary] = _curr_collec[&"assets"]
+				var assets: Array[Dictionary] = _curr_collec.assets
 
 				if selected_assets.size() == 1:
 					assets.remove_at(selected_assets[0])
@@ -1341,15 +1341,15 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				mark_unsaved()
 
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
-				show_in_file_system_request.emit(asset[&"path"])
+				show_in_file_system_request.emit(asset.path)
 
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
-				show_in_file_manager_request.emit(asset[&"path"])
+				show_in_file_manager_request.emit(asset.path)
 
 			AssetContextMenu.REFRESH:
 				for i: int in selected_assets:
 					asset = _item_list.get_item_metadata(i)
-					_queue_update_thumbnail(asset[&"id"])
+					_queue_update_thumbnail(asset.id)
 		)
 	self.add_child(popup)
 
@@ -1382,7 +1382,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 func _on_item_list_item_activated(index: int) -> void:
 	var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(index)
-	open_asset_request.emit(asset[&"path"])
+	open_asset_request.emit(asset.path)
 
 
 func _on_save_timer_timeout() -> void:
@@ -1437,7 +1437,7 @@ class AssetItemList extends ItemList:
 		var files := PackedStringArray()
 		for i: int in get_selected_items():
 			var asset: Dictionary[StringName, Variant] = get_item_metadata(i)
-			files.push_back(asset[&"path"])
+			files.push_back(asset.path)
 
 		set_drag_preview(_create_drag_preview(files))
 
@@ -1459,11 +1459,11 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
-		thumb_rect.set_texture(asset[&"thumb"])
+		thumb_rect.set_texture(asset.thumb)
 		vbox.add_child(thumb_rect)
 
 		var label := Label.new()
-		label.set_text(asset[&"path"])
+		label.set_text(asset.path)
 		vbox.add_child(label)
 
 		return vbox
