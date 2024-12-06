@@ -939,8 +939,8 @@ func _calculate_node_aabb(node: Node) -> AABB:
 	elif node is MeshInstance3D:
 		aabb = node.get_global_transform() * node.get_aabb()
 
-	for i: int in node.get_child_count():
-		aabb = aabb.merge(_calculate_node_aabb(node.get_child(i)))
+	for i: int in node.get_child_count(true):
+		aabb = aabb.merge(_calculate_node_aabb(node.get_child(i, true)))
 
 	return aabb
 
