@@ -18,6 +18,7 @@ func _enter_tree() -> void:
 	_editor = SceneLibrary.new()
 	_button = add_control_to_bottom_panel(_editor, BUTTON_NAME)
 	_editor.open_asset_request.connect(_on_open_asset_request)
+	_editor.inherit_asset_request.connect(_on_inherit_asset_request)
 	_editor.show_in_file_system_request.connect(_on_show_in_file_system_request)
 	_editor.show_in_file_manager_request.connect(_on_show_in_file_manager_request)
 	_editor.library_saved.connect(_on_library_saved)
@@ -54,6 +55,8 @@ func _on_library_unsaved() -> void:
 func _on_open_asset_request(path: String) -> void:
 	EditorInterface.open_scene_from_path(path)
 
+func _on_inherit_asset_request(path: String) -> void:
+	EditorInterface.open_scene_from_path(path, true)
 
 func _on_show_in_file_system_request(path: String) -> void:
 	EditorInterface.get_file_system_dock().navigate_to_path(path)
