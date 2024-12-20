@@ -14,7 +14,7 @@ var _editor: SceneLibrary = null
 var _button: Button = null
 
 
-func _enter_tree() -> void:
+func _enable_plugin() -> void:
 	_editor = SceneLibrary.new()
 	_button = add_control_to_bottom_panel(_editor, BUTTON_NAME)
 	_editor.open_asset_request.connect(_on_open_asset_request)
@@ -28,7 +28,7 @@ func _enter_tree() -> void:
 	EditorInterface.get_file_system_dock().file_removed.connect(_editor.handle_file_removed)
 
 
-func _exit_tree() -> void:
+func _disable_plugin() -> void:
 	remove_control_from_bottom_panel(_editor)
 	_editor.queue_free()
 
