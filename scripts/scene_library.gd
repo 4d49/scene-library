@@ -12,6 +12,7 @@ signal library_saved
 signal collection_changed
 
 signal open_asset_request(path: String)
+signal inherit_asset_request(path: String)
 signal show_in_file_system_request(path: String)
 signal show_in_file_manager_request(path: String)
 signal asset_display_mode_changed(display_mode: DisplayMode)
@@ -38,6 +39,7 @@ enum SortMode {
 }
 enum AssetContextMenu {
 	OPEN_ASSET,
+	INHERIT_ASSET,
 	COPY_PATH,
 	COPY_UID,
 	DELETE_ASSET,
@@ -1320,6 +1322,9 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 			AssetContextMenu.OPEN_ASSET:
 				open_asset_request.emit(asset.path)
 
+			AssetContextMenu.INHERIT_ASSET:
+				inherit_asset_request.emit(asset.path)
+
 			AssetContextMenu.COPY_PATH:
 				DisplayServer.clipboard_set(asset.path)
 
@@ -1356,6 +1361,8 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 	if selected_assets.size() == 1: # If only one asset is selected.
 		popup.add_item("Open", AssetContextMenu.OPEN_ASSET)
 		popup.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
+		popup.add_item("New Inherited Scene", AssetContextMenu.INHERIT_ASSET)
+		popup.set_item_icon(-1, get_theme_icon(&"CreateNewSceneFrom", &"EditorIcons"))
 		popup.add_separator()
 		popup.add_item("Copy Path", AssetContextMenu.COPY_PATH)
 		popup.set_item_icon(-1, get_theme_icon(&"ActionCopy", &"EditorIcons"))
