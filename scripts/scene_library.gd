@@ -1359,7 +1359,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 	self.add_child(popup)
 
 	if selected_assets.size() == 1: # If only one asset is selected.
-		popup.add_item("Open", AssetContextMenu.OPEN_ASSET)
+		popup.add_item("Open Scene", AssetContextMenu.OPEN_ASSET)
 		popup.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
 		popup.add_item("New Inherited Scene", AssetContextMenu.INHERIT_ASSET)
 		popup.set_item_icon(-1, get_theme_icon(&"CreateNewSceneFrom", &"EditorIcons"))
