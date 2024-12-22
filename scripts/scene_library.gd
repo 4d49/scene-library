@@ -921,12 +921,13 @@ func load_library(path: String) -> void:
 @warning_ignore("unsafe_method_access")
 func _calculate_node_rect(node: Node) -> Rect2:
 	var rect := Rect2()
+
 	if node is Node2D and node.is_visible():
 		# HACK: This works only in editor.
 		rect = node.get_global_transform() * node.call(&"_edit_get_rect")
 
-	for i: int in node.get_child_count():
-		rect = rect.merge(_calculate_node_rect(node.get_child(i)))
+	for i: int in node.get_child_count(true):
+		rect = rect.merge(_calculate_node_rect(node.get_child(i, true)))
 
 	return rect
 
