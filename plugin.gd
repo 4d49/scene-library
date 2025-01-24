@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Mansur Isaev and contributors - MIT License
+# Copyright (c) 2023-2025 Mansur Isaev and contributors - MIT License
 # See `LICENSE.md` included in the source distribution for details.
 
 @tool
