@@ -139,8 +139,31 @@ func _enter_tree() -> void:
 	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
 	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
 
-	_thumb_grid_icon_size = _def_setting("addons/scene_library/thumbnail/grid_size", 64)
-	_thumb_list_icon_size = _def_setting("addons/scene_library/thumbnail/list_size", 16)
+	var editor_settings = EditorInterface.get_editor_settings()
+
+	if editor_settings.has_setting("addons/scene_library/thumbnail/grid_size"):
+		_thumb_grid_icon_size = editor_settings.get_setting("addons/scene_library/thumbnail/grid_size")
+	else:
+		_thumb_grid_icon_size = 64
+		editor_settings.set_setting("addons/scene_library/thumbnail/grid_size", _thumb_grid_icon_size)
+
+	if editor_settings.has_setting("addons/scene_library/thumbnail/list_size"):
+		_thumb_list_icon_size = editor_settings.get_setting("addons/scene_library/thumbnail/list_size")
+	else:
+		_thumb_list_icon_size = 16
+		editor_settings.set_setting("addons/scene_library/thumbnail/list_size", _thumb_list_icon_size)
+
+	if editor_settings.has_setting("addons/scene_library/thumbnail/mode"):
+		_asset_display_mode = editor_settings.get_setting("addons/scene_library/thumbnail/mode")
+	else:
+		_asset_display_mode = DisplayMode.THUMBNAILS
+		editor_settings.set_setting("addons/scene_library/thumbnail/mode", _asset_display_mode)
+
+	if editor_settings.has_setting("addons/scene_library/sort_mode"):
+		_sort_mode = editor_settings.get_setting("addons/scene_library/sort_mode")
+	else:
+		_sort_mode = SortMode.NAME
+		editor_settings.set_setting("addons/scene_library/sort_mode", _sort_mode)
 
 	self.add_theme_constant_override(&"margin_left", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_LEFT))
 	self.add_theme_constant_override(&"margin_right", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_RIGHT))
@@ -281,9 +304,6 @@ func _enter_tree() -> void:
 	_item_list.item_activated.connect(_on_item_list_item_activated)
 	_content_vbox.add_child(_item_list)
 
-	_asset_display_mode = _def_setting("addons/scene_library/thumbnail/mode", DisplayMode.THUMBNAILS)
-	_update_asset_display_mode(_asset_display_mode)
-
 	_open_dialog = _create_file_dialog(true)
 	_open_dialog.set_title("Open Asset Library")
 	_open_dialog.connect(&"file_selected", load_library)
@@ -367,6 +387,8 @@ func _enter_tree() -> void:
 	load_library(_curr_lib_path)
 
 	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
+
+	_update_asset_display_mode(_asset_display_mode)
 
 
 func _exit_tree() -> void:
@@ -600,6 +622,9 @@ func set_current_collection(collection: Dictionary[StringName, Variant]) -> void
 
 	_curr_collec = collection
 
+	if _curr_collec.has(&"assets") and _curr_collec.assets is Array and not _curr_collec.assets.is_empty():
+		sort_assets(_curr_collec.assets, _sort_mode)
+
 	_item_list.deselect_all()
 	collection_changed.emit()
 
@@ -608,6 +633,9 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
+	if not _curr_collec.has(&"assets") or not _curr_collec.assets is Array:
+		return false
+
 	for asset: Dictionary in _curr_collec.assets:
 		if asset.path == path:
 			return true
@@ -649,10 +677,13 @@ func update_tabs() -> void:
 
 @warning_ignore("unsafe_call_argument")
 func update_item_list() -> void:
+	if not _curr_collec.has(&"assets") or not _curr_collec.assets is Array:
+		_item_list.set_item_count(0)
+		return
+
 	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
 
-	var is_list_mode: bool = _asset_display_mode == DisplayMode.LIST
 	var filter: String = _asset_filter_line.get_text()
 
 	var index: int = 0
@@ -676,7 +707,9 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 	if is_same(_asset_display_mode, display_mode):
 		return
 
-	ProjectSettings.set_setting("addons/scene_library/thumbnail/mode", display_mode)
+	var editor_settings = EditorInterface.get_editor_settings()
+	editor_settings.set_setting("addons/scene_library/thumbnail/mode", display_mode)
+
 	_asset_display_mode = display_mode
 
 	asset_display_mode_changed.emit(display_mode)
@@ -691,6 +724,9 @@ static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Diction
 	@warning_ignore("unsafe_method_access")
 	return a.path.get_file() > b.path.get_file()
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
+	if assets.is_empty():
+		return
+
 	if sort_mode == SortMode.NAME:
 		assets.sort_custom(sort_asset_ascending)
 	else:
@@ -700,8 +736,13 @@ func set_sort_mode(sort_mode: SortMode) -> void:
 	if is_same(_sort_mode, sort_mode):
 		return
 
+	var editor_settings = EditorInterface.get_editor_settings()
+	editor_settings.set_setting("addons/scene_library/sort_mode", sort_mode)
+
 	_sort_mode = sort_mode
-	sort_assets(_curr_collec.assets, sort_mode)
+
+	if _curr_collec.has(&"assets") and _curr_collec.assets is Array:
+		sort_assets(_curr_collec.assets, sort_mode)
 
 	collection_changed.emit()
 
@@ -1266,7 +1307,9 @@ func _set_thumb_grid_icon_size(icon_size: int) -> void:
 	if _thumb_grid_icon_size == icon_size:
 		return
 
-	ProjectSettings.set_setting("addons/scene_library/thumbnail/grid_size", icon_size)
+	var editor_settings = EditorInterface.get_editor_settings()
+	editor_settings.set_setting("addons/scene_library/thumbnail/grid_size", icon_size)
+
 	_thumb_grid_icon_size = icon_size
 
 	_update_thumb_icon_size(_asset_display_mode)
@@ -1278,7 +1321,9 @@ func _set_thumb_list_icon_size(icon_size: int) -> void:
 	if _thumb_list_icon_size == icon_size:
 		return
 
-	ProjectSettings.set_setting("addons/scene_library/thumbnail/list_size", icon_size)
+	var editor_settings = EditorInterface.get_editor_settings()
+	editor_settings.set_setting("addons/scene_library/thumbnail/list_size", icon_size)
+
 	_thumb_list_icon_size = icon_size
 
 	_update_thumb_icon_size(_asset_display_mode)
