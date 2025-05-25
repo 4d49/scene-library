@@ -50,6 +50,16 @@ enum AssetContextMenu {
 }
 
 
+const EDITOR_SETTING_THUMBNAIL_MODE: String = "addons/scene_library/thumbnail/mode"
+const EDITOR_SETTING_THUMBNAIL_GRID_SIZE: String = "addons/scene_library/thumbnail/grid_size"
+const EDITOR_SETTING_THUMBNAIL_LIST_SIZE: String = "addons/scene_library/thumbnail/list_size"
+const EDITOR_SETTING_SORT_MODE: String = "addons/scene_library/sort_mode"
+
+const PROJECT_SETTING_CACHE_ENABLED: String = "addons/scene_library/cache/enabled"
+const PROJECT_SETTING_CACHE_PATH: String = "addons/scene_library/cache/path"
+const PROJECT_SETTING_CURRENT_LIBRARY_PATH: String = "addons/scene_library/library/current_library_path"
+
+
 const NULL_LIBRARY: Array[Dictionary] = []
 const NULL_COLLECTION: Dictionary[StringName, Variant] = {}
 
@@ -127,43 +137,17 @@ func _update_position_new_collection_btn() -> void:
 	_all_tabs_list.set_visible(_collec_tab_bar.get_offset_buttons_visible())
 
 
-static func _def_setting(name: String, value: Variant) -> Variant:
-	if not ProjectSettings.has_setting(name):
-		ProjectSettings.set_setting(name, value)
-
-	ProjectSettings.set_initial_value(name, value)
-	return ProjectSettings.get_setting_with_override(name)
-
 @warning_ignore("narrowing_conversion", "unsafe_method_access")
 func _enter_tree() -> void:
-	_cache_enabled = _def_setting("addons/scene_library/cache/enabled", true)
-	_cache_path = _def_setting("addons/scene_library/cache/path", "res://.godot/thumb_cache")
+	_cache_enabled = get_or_create_project_setting(PROJECT_SETTING_CACHE_ENABLED, true)
+	_cache_path = get_or_create_project_setting(PROJECT_SETTING_CACHE_PATH, "res://.godot/thumb_cache")
 
-	var editor_settings = EditorInterface.get_editor_settings()
+	_asset_display_mode = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_MODE, DisplayMode.THUMBNAILS)
 
-	if editor_settings.has_setting("addons/scene_library/thumbnail/grid_size"):
-		_thumb_grid_icon_size = editor_settings.get_setting("addons/scene_library/thumbnail/grid_size")
-	else:
-		_thumb_grid_icon_size = 64
-		editor_settings.set_setting("addons/scene_library/thumbnail/grid_size", _thumb_grid_icon_size)
+	_thumb_grid_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_GRID_SIZE, 64)
+	_thumb_list_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_LIST_SIZE, 16)
 
-	if editor_settings.has_setting("addons/scene_library/thumbnail/list_size"):
-		_thumb_list_icon_size = editor_settings.get_setting("addons/scene_library/thumbnail/list_size")
-	else:
-		_thumb_list_icon_size = 16
-		editor_settings.set_setting("addons/scene_library/thumbnail/list_size", _thumb_list_icon_size)
-
-	if editor_settings.has_setting("addons/scene_library/thumbnail/mode"):
-		_asset_display_mode = editor_settings.get_setting("addons/scene_library/thumbnail/mode")
-	else:
-		_asset_display_mode = DisplayMode.THUMBNAILS
-		editor_settings.set_setting("addons/scene_library/thumbnail/mode", _asset_display_mode)
-
-	if editor_settings.has_setting("addons/scene_library/sort_mode"):
-		_sort_mode = editor_settings.get_setting("addons/scene_library/sort_mode")
-	else:
-		_sort_mode = SortMode.NAME
-		editor_settings.set_setting("addons/scene_library/sort_mode", _sort_mode)
+	_sort_mode = get_or_create_editor_setting(EDITOR_SETTING_SORT_MODE, SortMode.NAME)
 
 	self.add_theme_constant_override(&"margin_left", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_LEFT))
 	self.add_theme_constant_override(&"margin_right", -get_theme_stylebox(&"BottomPanel", &"EditorStyles").get_margin(SIDE_RIGHT))
@@ -383,7 +367,7 @@ func _enter_tree() -> void:
 	collection_changed.connect(update_item_list)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	_curr_lib_path = _def_setting("addons/scene_library/library/current_library_path", "res://addons/scene-library/scene_library.cfg")
+	_curr_lib_path = get_or_create_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, "res://addons/scene-library/scene_library.cfg")
 	load_library(_curr_lib_path)
 
 	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
@@ -431,6 +415,36 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 
 		for path: String in files:
 			create_asset(path)
+
+
+## Retrieves or creates an editor setting with a default value.
+## If the setting doesn't exist, it's initialized with the default value.
+## Returns the current value of the setting
+func get_or_create_editor_setting(name: String, default_value: Variant) -> Variant:
+	var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
+	if not editor_settings.has_setting(name):
+		editor_settings.set_setting(name, default_value)
+		editor_settings.set_initial_value(name, default_value, false)
+
+	return editor_settings.get_setting(name)
+
+## Retrieves or creates an editor setting with a default value.
+## If the setting doesn't exist, it's initialized with the default value.
+## Returns the current value of the setting
+func get_or_create_project_setting(name: String, default_value: Variant) -> Variant:
+	if not ProjectSettings.has_setting(name):
+		ProjectSettings.set_setting(name, default_value)
+		ProjectSettings.set_initial_value(name, default_value)
+
+	return ProjectSettings.get_setting(name, default_value)
+
+## Set editor setting value
+func set_editor_setting(name: String, value: Variant) -> void:
+	EditorInterface.get_editor_settings().set_setting(name, value)
+
+## Set project setting value.
+func set_project_setting(name: String, value: Variant) -> void:
+	ProjectSettings.set_setting(name, value)
 
 
 func mark_saved() -> void:
@@ -622,9 +636,6 @@ func set_current_collection(collection: Dictionary[StringName, Variant]) -> void
 
 	_curr_collec = collection
 
-	if _curr_collec.has(&"assets") and _curr_collec.assets is Array and not _curr_collec.assets.is_empty():
-		sort_assets(_curr_collec.assets, _sort_mode)
-
 	_item_list.deselect_all()
 	collection_changed.emit()
 
@@ -633,9 +644,6 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
-	if not _curr_collec.has(&"assets") or not _curr_collec.assets is Array:
-		return false
-
 	for asset: Dictionary in _curr_collec.assets:
 		if asset.path == path:
 			return true
@@ -677,10 +685,6 @@ func update_tabs() -> void:
 
 @warning_ignore("unsafe_call_argument")
 func update_item_list() -> void:
-	if not _curr_collec.has(&"assets") or not _curr_collec.assets is Array:
-		_item_list.set_item_count(0)
-		return
-
 	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
 
@@ -707,10 +711,8 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 	if is_same(_asset_display_mode, display_mode):
 		return
 
-	var editor_settings = EditorInterface.get_editor_settings()
-	editor_settings.set_setting("addons/scene_library/thumbnail/mode", display_mode)
-
 	_asset_display_mode = display_mode
+	set_editor_setting(EDITOR_SETTING_THUMBNAIL_MODE, display_mode)
 
 	asset_display_mode_changed.emit(display_mode)
 
@@ -736,13 +738,9 @@ func set_sort_mode(sort_mode: SortMode) -> void:
 	if is_same(_sort_mode, sort_mode):
 		return
 
-	var editor_settings = EditorInterface.get_editor_settings()
-	editor_settings.set_setting("addons/scene_library/sort_mode", sort_mode)
-
 	_sort_mode = sort_mode
-
-	if _curr_collec.has(&"assets") and _curr_collec.assets is Array:
-		sort_assets(_curr_collec.assets, sort_mode)
+	set_editor_setting(EDITOR_SETTING_SORT_MODE, sort_mode)
+	sort_assets(_curr_collec.assets, _sort_mode)
 
 	collection_changed.emit()
 
@@ -1307,10 +1305,8 @@ func _set_thumb_grid_icon_size(icon_size: int) -> void:
 	if _thumb_grid_icon_size == icon_size:
 		return
 
-	var editor_settings = EditorInterface.get_editor_settings()
-	editor_settings.set_setting("addons/scene_library/thumbnail/grid_size", icon_size)
-
 	_thumb_grid_icon_size = icon_size
+	set_editor_setting(EDITOR_SETTING_THUMBNAIL_GRID_SIZE, icon_size)
 
 	_update_thumb_icon_size(_asset_display_mode)
 
@@ -1321,10 +1317,8 @@ func _set_thumb_list_icon_size(icon_size: int) -> void:
 	if _thumb_list_icon_size == icon_size:
 		return
 
-	var editor_settings = EditorInterface.get_editor_settings()
-	editor_settings.set_setting("addons/scene_library/thumbnail/list_size", icon_size)
-
 	_thumb_list_icon_size = icon_size
+	set_editor_setting(EDITOR_SETTING_THUMBNAIL_LIST_SIZE, icon_size)
 
 	_update_thumb_icon_size(_asset_display_mode)
 
