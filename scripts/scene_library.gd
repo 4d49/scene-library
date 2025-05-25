@@ -892,6 +892,9 @@ func _deserialize_assets(assets: Array) -> Array[Dictionary]:
 			continue
 
 		deserialized.push_back(asset)
+	
+	if deserialized.size() > 0:
+		sort_assets(deserialized, _sort_mode)
 
 	return deserialized
 
