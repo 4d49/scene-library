@@ -725,10 +725,13 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
+
 static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
 	return a.path.get_file() < b.path.get_file()
+
 static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
 	return a.path.get_file() > b.path.get_file()
+
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
 	if assets.is_empty():
 		return
