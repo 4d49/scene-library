@@ -474,8 +474,8 @@ func set_current_library_path(path: String) -> void:
 	if is_same(_curr_lib_path, path):
 		return
 
-	ProjectSettings.set_setting("addons/scene_library/library/current_library_path", path)
 	_curr_lib_path = path
+	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
 
 func get_current_library_path() -> String:
 	return _curr_lib_path
