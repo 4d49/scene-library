@@ -579,13 +579,12 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 	return thumb
 
 func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName, Variant]:
-	var asset: Dictionary[StringName, Variant] = {
+	return {
 		&"id": id,
 		&"uid": uid,
 		&"path": path,
 		&"thumb": _get_or_create_thumbnail(id, path),
 	}
-	return asset
 
 
 static func is_valid_scene_file(path: String) -> bool:
