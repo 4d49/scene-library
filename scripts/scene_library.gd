@@ -420,31 +420,31 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 ## Retrieves or creates an editor setting with a default value.
 ## If the setting doesn't exist, it's initialized with the default value.
 ## Returns the current value of the setting
-func get_or_create_editor_setting(name: String, default_value: Variant) -> Variant:
+func get_or_create_editor_setting(setting_name: String, default_value: Variant) -> Variant:
 	var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
-	if not editor_settings.has_setting(name):
-		editor_settings.set_setting(name, default_value)
-		editor_settings.set_initial_value(name, default_value, false)
+	if not editor_settings.has_setting(setting_name):
+		editor_settings.set_setting(setting_name, default_value)
+		editor_settings.set_initial_value(setting_name, default_value, false)
 
-	return editor_settings.get_setting(name)
+	return editor_settings.get_setting(setting_name)
 
 ## Retrieves or creates an editor setting with a default value.
 ## If the setting doesn't exist, it's initialized with the default value.
 ## Returns the current value of the setting
-func get_or_create_project_setting(name: String, default_value: Variant) -> Variant:
-	if not ProjectSettings.has_setting(name):
-		ProjectSettings.set_setting(name, default_value)
-		ProjectSettings.set_initial_value(name, default_value)
+func get_or_create_project_setting(setting_name: String, default_value: Variant) -> Variant:
+	if not ProjectSettings.has_setting(setting_name):
+		ProjectSettings.set_setting(setting_name, default_value)
+		ProjectSettings.set_initial_value(setting_name, default_value)
 
-	return ProjectSettings.get_setting(name, default_value)
+	return ProjectSettings.get_setting(setting_name, default_value)
 
 ## Set editor setting value
-func set_editor_setting(name: String, value: Variant) -> void:
-	EditorInterface.get_editor_settings().set_setting(name, value)
+func set_editor_setting(setting_name: String, value: Variant) -> void:
+	EditorInterface.get_editor_settings().set_setting(setting_name, value)
 
 ## Set project setting value.
-func set_project_setting(name: String, value: Variant) -> void:
-	ProjectSettings.set_setting(name, value)
+func set_project_setting(setting_name: String, value: Variant) -> void:
+	ProjectSettings.set_setting(setting_name, value)
 
 
 func mark_saved() -> void:
