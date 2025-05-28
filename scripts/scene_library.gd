@@ -733,9 +733,6 @@ static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Diction
 	return a.path.get_file() > b.path.get_file()
 
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
-	if assets.is_empty():
-		return
-
 	if sort_mode == SortMode.NAME:
 		assets.sort_custom(sort_asset_ascending)
 	else:
@@ -899,10 +896,8 @@ func _deserialize_assets(assets: Array) -> Array[Dictionary]:
 			continue
 
 		deserialized.push_back(asset)
-	
-	if deserialized.size() > 0:
-		sort_assets(deserialized, _sort_mode)
 
+	sort_assets(deserialized, _sort_mode)
 	return deserialized
 
 func _deserialize_collection(collection: Dictionary) -> Dictionary[StringName, Variant]:
