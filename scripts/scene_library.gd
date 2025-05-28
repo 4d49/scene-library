@@ -588,7 +588,14 @@ func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName,
 
 
 static func is_valid_scene_file(path: String) -> bool:
-	return ResourceLoader.exists(path, "PackedScene") and ResourceLoader.get_recognized_extensions_for_type("PackedScene").has(path.get_extension().to_lower())
+	const TYPE_HINT: String = "PackedScene"
+
+	if not ResourceLoader.exists(path, TYPE_HINT):
+		return false
+
+	var valid_extensions := ResourceLoader.get_recognized_extensions_for_type(TYPE_HINT)
+	return path.get_extension().to_lower() in valid_extensions
+
 
 
 static func get_or_create_valid_uid(path: String) -> int:
