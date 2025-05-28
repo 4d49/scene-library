@@ -137,7 +137,6 @@ func _update_position_new_collection_btn() -> void:
 	_all_tabs_list.set_visible(_collec_tab_bar.get_offset_buttons_visible())
 
 
-@warning_ignore("narrowing_conversion", "unsafe_method_access")
 func _enter_tree() -> void:
 	_cache_enabled = get_or_create_project_setting(PROJECT_SETTING_CACHE_ENABLED, true)
 	_cache_path = get_or_create_project_setting(PROJECT_SETTING_CACHE_PATH, "res://.godot/thumb_cache")
@@ -384,7 +383,6 @@ func _exit_tree() -> void:
 	if _thread.is_started():
 		_thread.wait_to_finish()
 
-@warning_ignore("unsafe_method_access")
 func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not _item_list.get_rect().has_point(at_position):
 		return false
@@ -683,7 +681,6 @@ func update_tabs() -> void:
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
 
-@warning_ignore("unsafe_call_argument")
 func update_item_list() -> void:
 	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
@@ -720,10 +717,8 @@ func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
 static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	@warning_ignore("unsafe_method_access")
 	return a.path.get_file() < b.path.get_file()
 static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	@warning_ignore("unsafe_method_access")
 	return a.path.get_file() > b.path.get_file()
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
 	if assets.is_empty():
@@ -960,7 +955,6 @@ func load_library(path: String) -> void:
 	set_current_library_path(path)
 
 
-@warning_ignore("unsafe_method_access")
 func _calculate_node_rect(node: Node) -> Rect2:
 	var rect := Rect2()
 
@@ -973,7 +967,6 @@ func _calculate_node_rect(node: Node) -> Rect2:
 
 	return rect
 
-@warning_ignore("unsafe_method_access")
 func _calculate_node_aabb(node: Node) -> AABB:
 	var aabb := AABB()
 
