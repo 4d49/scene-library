@@ -568,7 +568,10 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 		thumb = ImageTexture.create_from_image(Image.load_from_file(cache_path))
 		_thumbnails[id] = thumb
 	else:
-		thumb = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_placeholder.svg")))
+		const THUMB_PLACEHOLDER_PATH: String = "res://addons/scene-library/icons/thumb_placeholder.svg"
+
+		var thumb_placeholder_path: String = ProjectSettings.globalize_path(THUMB_PLACEHOLDER_PATH)
+		thumb = ImageTexture.create_from_image(Image.load_from_file(thumb_placeholder_path))
 		_thumbnails[id] = thumb
 
 		_queue_update_thumbnail(id)
