@@ -137,7 +137,6 @@ func _update_position_new_collection_btn() -> void:
 	_all_tabs_list.set_visible(_collec_tab_bar.get_offset_buttons_visible())
 
 
-@warning_ignore("narrowing_conversion", "unsafe_method_access")
 func _enter_tree() -> void:
 	_cache_enabled = get_or_create_project_setting(PROJECT_SETTING_CACHE_ENABLED, true)
 	_cache_path = get_or_create_project_setting(PROJECT_SETTING_CACHE_PATH, "res://.godot/thumb_cache")
@@ -384,7 +383,6 @@ func _exit_tree() -> void:
 	if _thread.is_started():
 		_thread.wait_to_finish()
 
-@warning_ignore("unsafe_method_access")
 func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not _item_list.get_rect().has_point(at_position):
 		return false
@@ -420,31 +418,31 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 ## Retrieves or creates an editor setting with a default value.
 ## If the setting doesn't exist, it's initialized with the default value.
 ## Returns the current value of the setting
-func get_or_create_editor_setting(name: String, default_value: Variant) -> Variant:
+func get_or_create_editor_setting(setting_name: String, default_value: Variant) -> Variant:
 	var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
-	if not editor_settings.has_setting(name):
-		editor_settings.set_setting(name, default_value)
-		editor_settings.set_initial_value(name, default_value, false)
+	if not editor_settings.has_setting(setting_name):
+		editor_settings.set_setting(setting_name, default_value)
+		editor_settings.set_initial_value(setting_name, default_value, false)
 
-	return editor_settings.get_setting(name)
+	return editor_settings.get_setting(setting_name)
 
 ## Retrieves or creates an editor setting with a default value.
 ## If the setting doesn't exist, it's initialized with the default value.
 ## Returns the current value of the setting
-func get_or_create_project_setting(name: String, default_value: Variant) -> Variant:
-	if not ProjectSettings.has_setting(name):
-		ProjectSettings.set_setting(name, default_value)
-		ProjectSettings.set_initial_value(name, default_value)
+func get_or_create_project_setting(setting_name: String, default_value: Variant) -> Variant:
+	if not ProjectSettings.has_setting(setting_name):
+		ProjectSettings.set_setting(setting_name, default_value)
+		ProjectSettings.set_initial_value(setting_name, default_value)
 
-	return ProjectSettings.get_setting(name, default_value)
+	return ProjectSettings.get_setting(setting_name, default_value)
 
 ## Set editor setting value
-func set_editor_setting(name: String, value: Variant) -> void:
-	EditorInterface.get_editor_settings().set_setting(name, value)
+func set_editor_setting(setting_name: String, value: Variant) -> void:
+	EditorInterface.get_editor_settings().set_setting(setting_name, value)
 
 ## Set project setting value.
-func set_project_setting(name: String, value: Variant) -> void:
-	ProjectSettings.set_setting(name, value)
+func set_project_setting(setting_name: String, value: Variant) -> void:
+	ProjectSettings.set_setting(setting_name, value)
 
 
 func mark_saved() -> void:
@@ -476,8 +474,8 @@ func set_current_library_path(path: String) -> void:
 	if is_same(_curr_lib_path, path):
 		return
 
-	ProjectSettings.set_setting("addons/scene_library/library/current_library_path", path)
 	_curr_lib_path = path
+	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
 
 func get_current_library_path() -> String:
 	return _curr_lib_path
@@ -570,7 +568,10 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 		thumb = ImageTexture.create_from_image(Image.load_from_file(cache_path))
 		_thumbnails[id] = thumb
 	else:
-		thumb = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path("res://addons/scene-library/icons/thumb_placeholder.svg")))
+		const THUMB_PLACEHOLDER_PATH: String = "res://addons/scene-library/icons/thumb_placeholder.svg"
+
+		var thumb_placeholder_path: String = ProjectSettings.globalize_path(THUMB_PLACEHOLDER_PATH)
+		thumb = ImageTexture.create_from_image(Image.load_from_file(thumb_placeholder_path))
 		_thumbnails[id] = thumb
 
 		_queue_update_thumbnail(id)
@@ -578,17 +579,23 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 	return thumb
 
 func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName, Variant]:
-	var asset: Dictionary[StringName, Variant] = {
+	return {
 		&"id": id,
 		&"uid": uid,
 		&"path": path,
 		&"thumb": _get_or_create_thumbnail(id, path),
 	}
-	return asset
 
 
 static func is_valid_scene_file(path: String) -> bool:
-	return ResourceLoader.exists(path, "PackedScene") and ResourceLoader.get_recognized_extensions_for_type("PackedScene").has(path.get_extension().to_lower())
+	const TYPE_HINT: String = "PackedScene"
+
+	if not ResourceLoader.exists(path, TYPE_HINT):
+		return false
+
+	var valid_extensions := ResourceLoader.get_recognized_extensions_for_type(TYPE_HINT)
+	return path.get_extension().to_lower() in valid_extensions
+
 
 
 static func get_or_create_valid_uid(path: String) -> int:
@@ -683,7 +690,6 @@ func update_tabs() -> void:
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
 
-@warning_ignore("unsafe_call_argument")
 func update_item_list() -> void:
 	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
@@ -719,12 +725,13 @@ func set_asset_display_mode(display_mode: DisplayMode) -> void:
 func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
+
 static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	@warning_ignore("unsafe_method_access")
 	return a.path.get_file() < b.path.get_file()
+
 static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
-	@warning_ignore("unsafe_method_access")
 	return a.path.get_file() > b.path.get_file()
+
 static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
 	if assets.is_empty():
 		return
@@ -960,7 +967,6 @@ func load_library(path: String) -> void:
 	set_current_library_path(path)
 
 
-@warning_ignore("unsafe_method_access")
 func _calculate_node_rect(node: Node) -> Rect2:
 	var rect := Rect2()
 
@@ -973,7 +979,6 @@ func _calculate_node_rect(node: Node) -> Rect2:
 
 	return rect
 
-@warning_ignore("unsafe_method_access")
 func _calculate_node_aabb(node: Node) -> AABB:
 	var aabb := AABB()
 
