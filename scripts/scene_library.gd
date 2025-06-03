@@ -29,7 +29,7 @@ enum LibraryMenu {
 	SAVE,
 	SAVE_AS,
 }
-enum DisplayMode{
+enum DisplayMode {
 	THUMBNAILS,
 	LIST,
 }
@@ -597,7 +597,6 @@ static func is_valid_scene_file(path: String) -> bool:
 	return path.get_extension().to_lower() in valid_extensions
 
 
-
 static func get_or_create_valid_uid(path: String) -> int:
 	var id: int = ResourceLoader.get_resource_uid(path)
 	if id == ResourceUID.INVALID_ID:
@@ -800,7 +799,6 @@ func show_create_collection_dialog() -> AcceptDialog:
 	line_edit.grab_focus()
 
 	return window
-
 
 
 func _serialize_asset(asset: Dictionary[StringName, Variant]) -> Dictionary:
@@ -1084,8 +1082,6 @@ func _thread_process() -> void:
 			semaphore.wait()
 
 
-
-
 func handle_scene_saved(path: String) -> void:
 	# INFO: When we save a scene, we try to update the asset thumbnail.
 	# The "_queue_update_thumbnail" method will not create new thumbnails if they have not been previously created.
@@ -1123,8 +1119,6 @@ func handle_file_removed(file: String) -> void:
 
 	if removed:
 		collection_changed.emit()
-
-
 
 
 func _on_collection_tab_changed(tab: int) -> void:
@@ -1440,8 +1434,6 @@ func _on_save_timer_timeout() -> void:
 		return
 
 	save_library(_curr_lib_path)
-
-
 
 
 class AssetItemList extends ItemList:
