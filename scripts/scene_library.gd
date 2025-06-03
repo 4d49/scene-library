@@ -46,6 +46,7 @@ enum AssetContextMenu {
 	SHOW_IN_FILE_SYSTEM,
 	SHOW_IN_FILE_MANAGER,
 	REFRESH,
+	SAVE_ICON_TO_DISK,
 	MAX,
 }
 
@@ -609,6 +610,10 @@ static func get_or_create_valid_uid(path: String) -> int:
 func create_asset(path: String) -> void:
 	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
 
+	if _curr_collec.is_read_only() or not _curr_collec.has(&"assets"):
+		push_warning("Cannot add asset: no valid collection selected.")
+		return
+
 	var id: int = get_or_create_valid_uid(path)
 	var new_asset: Dictionary[StringName, Variant] = _create_asset(id, ResourceUID.id_to_text(id), path)
 
@@ -620,6 +625,9 @@ func create_asset(path: String) -> void:
 
 
 func remove_asset(id: int) -> bool:
+	if _curr_collec.is_read_only() or not _curr_collec.has(&"assets"):
+		return false
+		
 	var assets: Array[Dictionary] = _curr_collec.assets
 
 	for i: int in assets.size():
@@ -650,6 +658,9 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
+	if _curr_collec.is_read_only() or not _curr_collec.has(&"assets"):
+		return false
+		
 	for asset: Dictionary in _curr_collec.assets:
 		if asset.path == path:
 			return true
@@ -690,6 +701,10 @@ func update_tabs() -> void:
 	_collec_tab_bar.size_flags_changed.emit()
 
 func update_item_list() -> void:
+	if _curr_collec.is_read_only() or not _curr_collec.has(&"assets"):
+		_item_list.set_item_count(0)
+		return
+		
 	var assets: Array[Dictionary] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
 
@@ -743,7 +758,9 @@ func set_sort_mode(sort_mode: SortMode) -> void:
 
 	_sort_mode = sort_mode
 	set_editor_setting(EDITOR_SETTING_SORT_MODE, sort_mode)
-	sort_assets(_curr_collec.assets, _sort_mode)
+	
+	if not _curr_collec.is_read_only() and _curr_collec.has(&"assets"):
+		sort_assets(_curr_collec.assets, _sort_mode)
 
 	collection_changed.emit()
 
@@ -952,7 +969,7 @@ func load_library(path: String) -> void:
 		elif extension == "json":
 			library = _load_json(path)
 
-	# Check for “null” value.
+	# Check for "null" value.
 	if library.is_read_only():
 		return
 
@@ -1392,6 +1409,9 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				for i: int in selected_assets:
 					asset = _item_list.get_item_metadata(i)
 					_queue_update_thumbnail(asset.id)
+
+			AssetContextMenu.SAVE_ICON_TO_DISK:
+				_save_icon_to_disk_dialog(asset)
 		)
 	self.add_child(popup)
 
@@ -1415,6 +1435,9 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 		popup.add_separator()
 		popup.add_item("Refresh", AssetContextMenu.REFRESH)
 		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
+		popup.add_separator()
+		popup.add_item("Save Icon to Disk", AssetContextMenu.SAVE_ICON_TO_DISK)
+		popup.set_item_icon(-1, get_theme_icon(&"Save", &"EditorIcons"))
 	else: # If many assets are selected.
 		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
 		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
@@ -1509,3 +1532,70 @@ class AssetItemList extends ItemList:
 		vbox.add_child(label)
 
 		return vbox
+
+func _save_icon_to_disk_dialog(asset: Dictionary[StringName, Variant]) -> void:
+	var dialog: ConfirmationDialog = null
+	
+	if Engine.is_editor_hint():
+		var editor_file_dialog: EditorFileDialog = ClassDB.instantiate(&"EditorFileDialog")
+		editor_file_dialog.set_access(EditorFileDialog.ACCESS_FILESYSTEM)
+		editor_file_dialog.set_file_mode(EditorFileDialog.FILE_MODE_SAVE_FILE)
+		editor_file_dialog.add_filter("*.png", "PNG Image")
+		editor_file_dialog.add_filter("*.jpg", "JPEG Image")
+		editor_file_dialog.add_filter("*.exr", "OpenEXR Image")
+		dialog = editor_file_dialog
+	else:
+		var file_dialog := FileDialog.new()
+		file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
+		file_dialog.set_file_mode(FileDialog.FILE_MODE_SAVE_FILE)
+		file_dialog.add_filter("*.png", "PNG Image")
+		file_dialog.add_filter("*.jpg", "JPEG Image")
+		file_dialog.add_filter("*.exr", "OpenEXR Image")
+		dialog = file_dialog
+	
+	dialog.set_exclusive(true)
+	dialog.set_title("Save Icon to Disk")
+	
+	# Set default filename based on scene name
+	var scene_name = asset.path.get_file().get_basename()
+	dialog.set_current_file(scene_name + "_icon.png")
+	
+	dialog.file_selected.connect(func(path: String) -> void:
+		_save_asset_icon_to_file(asset, path)
+		dialog.queue_free()
+	)
+	
+	dialog.focus_exited.connect(dialog.queue_free)
+	self.add_child(dialog)
+	dialog.popup_centered_clamped(Vector2(1050, 700) * DisplayServer.screen_get_scale(), 0.8)
+
+
+func _save_asset_icon_to_file(asset: Dictionary[StringName, Variant], file_path: String) -> void:
+	var thumb: ImageTexture = asset.thumb
+	if not is_instance_valid(thumb):
+		push_warning("No valid thumbnail found for asset: " + asset.path)
+		return
+	
+	var image: Image = thumb.get_image()
+	if not is_instance_valid(image):
+		push_warning("Could not get image from thumbnail for asset: " + asset.path)
+		return
+	
+	var extension: String = file_path.get_extension().to_lower()
+	var error: Error = OK
+	
+	match extension:
+		"png":
+			error = image.save_png(file_path)
+		"jpg", "jpeg":
+			error = image.save_jpg(file_path)
+		"exr":
+			error = image.save_exr(file_path)
+		_:
+			push_warning("Unsupported file format: " + extension)
+			return
+	
+	if error != OK:
+		push_warning("Failed to save icon to " + file_path + ": " + error_string(error))
+	else:
+		print("Icon saved successfully to: " + file_path)
