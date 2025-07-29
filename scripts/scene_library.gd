@@ -87,8 +87,13 @@ var _mode_list_btn: Button = null
 
 var _item_list: ItemList = null
 
+var _item_context_menu: PopupMenu = null
+var _collec_context_menu: PopupMenu = null
 var _open_dialog: ConfirmationDialog = null
 var _save_dialog: ConfirmationDialog = null
+var _rename_collec_window: ConfirmationDialog = null
+var _create_collec_dialog: ConfirmationDialog = null
+var _remove_collec_dialog: ConfirmationDialog = null
 
 var _save_timer: Timer = null
 
@@ -520,20 +525,20 @@ func show_remove_collection_dialog(index: int) -> void:
 	if assets.is_empty():
 		return remove_collection(index)
 
-	var window := ConfirmationDialog.new()
-	window.set_size(Vector2i.ZERO)
-	window.set_flag(Window.FLAG_RESIZE_DISABLED, true)
-	window.focus_exited.connect(window.queue_free)
-	window.confirmed.connect(remove_collection.bind(index))
+	if is_instance_valid(_remove_collec_dialog):
+		_remove_collec_dialog.queue_free()
 
-	window.set_ok_button_text("Remove")
+	_remove_collec_dialog = ConfirmationDialog.new()
+	_remove_collec_dialog.set_size(Vector2i.ZERO)
+	_remove_collec_dialog.set_flag(Window.FLAG_RESIZE_DISABLED, true)
+	_remove_collec_dialog.set_ok_button_text("Remove")
+	_remove_collec_dialog.set_text("Are you sure you want to delete this collection? (Cannot be undone.)")
+	_remove_collec_dialog.canceled.connect(_remove_collec_dialog.queue_free)
+	_remove_collec_dialog.close_requested.connect(_remove_collec_dialog.queue_free)
+	_remove_collec_dialog.confirmed.connect(remove_collection.bind(index))
+	self.add_child(_remove_collec_dialog)
 
-	var label := Label.new()
-	label.set_text("Are you sure you want to delete this collection? (Cannot be undone.)")
-	window.add_child(label)
-
-	self.add_child(window)
-	window.popup_centered(Vector2i(300, 0))
+	_remove_collec_dialog.popup_centered(Vector2i(300, 0))
 
 
 func _queue_has_id(id: int) -> bool:
@@ -753,29 +758,32 @@ func get_sort_mode() -> SortMode:
 
 
 func show_create_collection_dialog() -> AcceptDialog:
-	var window := AcceptDialog.new()
-	window.set_size(Vector2i.ZERO)
-	window.set_title("Create New Collection")
-	window.add_cancel_button("Cancel")
-	window.set_flag(Window.FLAG_RESIZE_DISABLED, true)
-	window.focus_exited.connect(window.queue_free)
-	self.add_child(window)
+	if is_instance_valid(_create_collec_dialog):
+		_create_collec_dialog.queue_free()
 
-	var ok_button: Button = window.get_ok_button()
+	_create_collec_dialog = ConfirmationDialog.new()
+	_create_collec_dialog.set_size(Vector2i.ZERO)
+	_create_collec_dialog.set_title("Create New Collection")
+	_create_collec_dialog.set_flag(Window.FLAG_RESIZE_DISABLED, true)
+	_create_collec_dialog.get_label().hide() # Faced with the fact that the "panel" is drawn from the Label.
+	_create_collec_dialog.close_requested.connect(_create_collec_dialog.queue_free)
+	_create_collec_dialog.canceled.connect(_create_collec_dialog.queue_free)
+
+	var ok_button: Button = _create_collec_dialog.get_ok_button()
 	ok_button.set_text("Create")
 	ok_button.set_disabled(true)
 
 	var vbox := VBoxContainer.new()
-	window.add_child(vbox)
+	_create_collec_dialog.add_child(vbox)
 
 	var label := Label.new()
 	label.set_text("New Collection Name:")
 	vbox.add_child(label)
 
 	var line_edit := LineEdit.new()
-	window.register_text_enter(line_edit)
 	line_edit.set_text("new_collection")
 	line_edit.select_all()
+	line_edit.call_deferred(&"grab_focus")
 
 	# INFO: Disables the ability to create a collection and set a tooltip.
 	line_edit.text_changed.connect(func(c_name: String) -> void:
@@ -792,14 +800,15 @@ func show_create_collection_dialog() -> AcceptDialog:
 	line_edit.text_changed.emit(line_edit.get_text()) # Required for status updates.
 	vbox.add_child(line_edit)
 
-	window.confirmed.connect(func() -> void:
+	self.add_child(_create_collec_dialog)
+	_create_collec_dialog.register_text_enter(line_edit)
+	_create_collec_dialog.confirmed.connect(func() -> void:
 		var new_collec_name: String = line_edit.get_text()
 		create_collection(new_collec_name)
 	)
-	window.popup_centered(Vector2i(300, 0))
-	line_edit.grab_focus()
+	_create_collec_dialog.popup_centered(Vector2i(300, 0))
 
-	return window
+	return _create_collec_dialog
 
 
 
@@ -1137,29 +1146,32 @@ func _on_collection_tab_close_pressed(tab: int) -> void:
 
 func _on_collection_tab_rmb_clicked(tab: int) -> void:
 	var collection: Dictionary = _collec_tab_bar.get_tab_metadata(tab)
+	if is_instance_valid(_collec_context_menu):
+		_collec_context_menu.queue_free()
 
-	var popup := PopupMenu.new()
-	popup.id_pressed.connect(func(option: CollectionTabMenu) -> void:
+	_collec_context_menu = PopupMenu.new()
+	_collec_context_menu.id_pressed.connect(func(option: CollectionTabMenu) -> void:
 		match option:
 			CollectionTabMenu.NEW:
 				show_create_collection_dialog()
-
 			CollectionTabMenu.RENAME:
-				var old_name: String = collection.name
+				if is_instance_valid(_rename_collec_window):
+					_rename_collec_window.queue_free()
 
-				var rename_collec_window := AcceptDialog.new()
-				rename_collec_window.set_size(Vector2i.ZERO)
-				rename_collec_window.set_title("Rename Collection")
-				rename_collec_window.add_cancel_button("Cancel")
-				rename_collec_window.set_flag(Window.FLAG_RESIZE_DISABLED, true)
-				rename_collec_window.focus_exited.connect(rename_collec_window.queue_free)
+				_rename_collec_window = ConfirmationDialog.new()
+				_rename_collec_window.set_size(Vector2i.ZERO)
+				_rename_collec_window.set_title("Rename Collection")
+				_rename_collec_window.set_flag(Window.FLAG_RESIZE_DISABLED, true)
+				_rename_collec_window.get_label().hide()
+				_rename_collec_window.canceled.connect(_rename_collec_window.queue_free)
+				_rename_collec_window.close_requested.connect(_rename_collec_window.queue_free)
 
-				var ok_button: Button = rename_collec_window.get_ok_button()
+				var ok_button: Button = _rename_collec_window.get_ok_button()
 				ok_button.set_text("OK")
 				ok_button.set_disabled(true)
 
 				var vbox := VBoxContainer.new()
-				rename_collec_window.add_child(vbox)
+				_rename_collec_window.add_child(vbox)
 
 				var label := Label.new()
 				label.set_text("Change Collection Name:")
@@ -1167,8 +1179,8 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 
 				var line_edit := LineEdit.new()
 				line_edit.set_select_all_on_focus(true)
-				line_edit.set_text(old_name)
-				rename_collec_window.register_text_enter(line_edit)
+				line_edit.set_text(collection.name)
+				_rename_collec_window.register_text_enter(line_edit)
 
 				# INFO: Disables the ability to create a collection and set a tooltip.
 				line_edit.text_changed.connect(func(new_name: String) -> void:
@@ -1185,36 +1197,33 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 					ok_button.set_disabled(not is_valid)
 					line_edit.set_right_icon(null if is_valid else get_theme_icon(&"StatusError", &"EditorIcons"))
 				)
-
 				line_edit.text_changed.emit(line_edit.get_text()) # Required for update status.
 				vbox.add_child(line_edit)
 
-				rename_collec_window.confirmed.connect(func() -> void:
+				_rename_collec_window.confirmed.connect(func() -> void:
 					collection.name = line_edit.get_text()
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
 					mark_unsaved()
 				)
 
-				self.add_child(rename_collec_window)
-				rename_collec_window.popup_centered(Vector2i(300, 0))
+				self.add_child(_rename_collec_window)
+				_rename_collec_window.popup_centered(Vector2i(300, 0))
 				line_edit.grab_focus()
-
 			CollectionTabMenu.DELETE:
 				show_remove_collection_dialog(tab)
 		)
-	popup.focus_exited.connect(popup.queue_free)
-	self.add_child(popup)
+	self.add_child(_collec_context_menu)
 
 	if collection.is_read_only(): # If "null" collection.
 		# BUG: You can't see it because the tab is disabled.
-		popup.add_item("New Collection", CollectionTabMenu.NEW)
+		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
 	else:
-		popup.add_item("New Collection", CollectionTabMenu.NEW)
-		popup.add_separator()
-		popup.add_item("Rename Collection", CollectionTabMenu.RENAME)
-		popup.add_item("Delete Collection", CollectionTabMenu.DELETE)
+		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
+		_collec_context_menu.add_separator()
+		_collec_context_menu.add_item("Rename Collection", CollectionTabMenu.RENAME)
+		_collec_context_menu.add_item("Delete Collection", CollectionTabMenu.DELETE)
 
-	popup.popup(Rect2i(get_screen_position() + get_local_mouse_position(), Vector2i.ZERO))
+	_collec_context_menu.popup(Rect2i(get_screen_position() + get_local_mouse_position(), Vector2i.ZERO))
 
 
 func _on_collection_tab_rearranged(_to_idx: int) -> void:
@@ -1356,24 +1365,22 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 	_item_list.select(index, false)
 	var selected_assets: PackedInt32Array = _item_list.get_selected_items()
 
-	var popup := PopupMenu.new()
-	popup.connect(&"focus_exited", popup.queue_free)
-	popup.connect(&"id_pressed", func(option: AssetContextMenu) -> void:
+	if is_instance_valid(_item_context_menu):
+		_item_context_menu.queue_free()
+
+	_item_context_menu = PopupMenu.new()
+	_item_context_menu.id_pressed.connect(func(option: AssetContextMenu) -> void:
 		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(selected_assets[0])
 
 		match option:
 			AssetContextMenu.OPEN_ASSET:
 				open_asset_request.emit(asset.path)
-
 			AssetContextMenu.INHERIT_ASSET:
 				inherit_asset_request.emit(asset.path)
-
 			AssetContextMenu.COPY_PATH:
 				DisplayServer.clipboard_set(asset.path)
-
 			AssetContextMenu.COPY_UID:
 				DisplayServer.clipboard_set(asset.uid)
-
 			AssetContextMenu.DELETE_ASSET:
 				var assets: Array[Dictionary] = _curr_collec.assets
 
@@ -1387,47 +1394,44 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 				collection_changed.emit()
 				mark_unsaved()
-
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
 				show_in_file_system_request.emit(asset.path)
-
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
 				show_in_file_manager_request.emit(asset.path)
-
 			AssetContextMenu.REFRESH:
 				for i: int in selected_assets:
 					asset = _item_list.get_item_metadata(i)
 					_queue_update_thumbnail(asset.id)
 		)
-	self.add_child(popup)
+	self.add_child(_item_context_menu)
 
 	if selected_assets.size() == 1: # If only one asset is selected.
-		popup.add_item("Open Scene", AssetContextMenu.OPEN_ASSET)
-		popup.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
-		popup.add_item("New Inherited Scene", AssetContextMenu.INHERIT_ASSET)
-		popup.set_item_icon(-1, get_theme_icon(&"CreateNewSceneFrom", &"EditorIcons"))
-		popup.add_separator()
-		popup.add_item("Copy Path", AssetContextMenu.COPY_PATH)
-		popup.set_item_icon(-1, get_theme_icon(&"ActionCopy", &"EditorIcons"))
-		popup.add_item("Copy UID", AssetContextMenu.COPY_UID)
-		popup.set_item_icon(-1, get_theme_icon(&"Instance", &"EditorIcons"))
-		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
-		popup.set_item_icon(-1, get_theme_icon(&"Remove", &"EditorIcons"))
-		popup.add_separator()
-		popup.add_item("Show in FileSystem", AssetContextMenu.SHOW_IN_FILE_SYSTEM)
-		popup.set_item_icon(-1, get_theme_icon(&"Filesystem", &"EditorIcons"))
-		popup.add_item("Show in File Manager", AssetContextMenu.SHOW_IN_FILE_MANAGER)
-		popup.set_item_icon(-1, get_theme_icon(&"Folder", &"EditorIcons"))
-		popup.add_separator()
-		popup.add_item("Refresh", AssetContextMenu.REFRESH)
-		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
+		_item_context_menu.add_item("Open Scene", AssetContextMenu.OPEN_ASSET)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Load", &"EditorIcons"))
+		_item_context_menu.add_item("New Inherited Scene", AssetContextMenu.INHERIT_ASSET)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"CreateNewSceneFrom", &"EditorIcons"))
+		_item_context_menu.add_separator()
+		_item_context_menu.add_item("Copy Path", AssetContextMenu.COPY_PATH)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"ActionCopy", &"EditorIcons"))
+		_item_context_menu.add_item("Copy UID", AssetContextMenu.COPY_UID)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Instance", &"EditorIcons"))
+		_item_context_menu.add_item("Delete", AssetContextMenu.DELETE_ASSET)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Remove", &"EditorIcons"))
+		_item_context_menu.add_separator()
+		_item_context_menu.add_item("Show in FileSystem", AssetContextMenu.SHOW_IN_FILE_SYSTEM)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Filesystem", &"EditorIcons"))
+		_item_context_menu.add_item("Show in File Manager", AssetContextMenu.SHOW_IN_FILE_MANAGER)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Folder", &"EditorIcons"))
+		_item_context_menu.add_separator()
+		_item_context_menu.add_item("Refresh", AssetContextMenu.REFRESH)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 	else: # If many assets are selected.
-		popup.add_item("Delete", AssetContextMenu.DELETE_ASSET)
-		popup.set_item_icon(popup.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
-		popup.add_item("Refresh", AssetContextMenu.REFRESH)
-		popup.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
+		_item_context_menu.add_item("Delete", AssetContextMenu.DELETE_ASSET)
+		_item_context_menu.set_item_icon(_item_context_menu.get_item_index(AssetContextMenu.DELETE_ASSET), get_theme_icon(&"Remove", &"EditorIcons"))
+		_item_context_menu.add_item("Refresh", AssetContextMenu.REFRESH)
+		_item_context_menu.set_item_icon(-1, get_theme_icon(&"Reload", &"EditorIcons"))
 
-	popup.popup(Rect2i(_item_list.get_screen_position() + at_position, Vector2i.ZERO))
+	_item_context_menu.popup(Rect2i(_item_list.get_screen_position() + at_position, Vector2i.ZERO))
 
 
 func _on_item_list_item_activated(index: int) -> void:
