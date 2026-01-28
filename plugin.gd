@@ -7,16 +7,20 @@ extends EditorPlugin
 
 const SceneLibrary = preload("res://addons/scene-library/scripts/scene_library.gd")
 
-const BUTTON_NAME: String = "Scene Library"
+const DOCK_NAME: String = "Scene Library"
 
 
 var _editor: SceneLibrary = null
-var _button: Button = null
+var _dock: EditorDock = null
 
 
 func _enter_tree() -> void:
 	_editor = SceneLibrary.new()
-	_button = add_control_to_bottom_panel(_editor, BUTTON_NAME)
+	_dock = EditorDock.new()
+	_dock.name = DOCK_NAME
+	_dock.default_slot = EditorDock.DOCK_SLOT_BOTTOM
+	_dock.add_child(_editor)
+	add_dock(_dock)
 	_editor.open_asset_request.connect(_on_open_asset_request)
 	_editor.inherit_asset_request.connect(_on_inherit_asset_request)
 	_editor.show_in_file_system_request.connect(_on_show_in_file_system_request)
@@ -30,8 +34,8 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
-	remove_control_from_bottom_panel(_editor)
-	_editor.queue_free()
+	remove_dock(_dock)
+	_dock.queue_free()
 
 
 func _save_external_data() -> void:
@@ -46,10 +50,10 @@ func _save_external_data() -> void:
 
 
 func _on_library_saved() -> void:
-	_button.set_text(BUTTON_NAME)
+	_dock.name = DOCK_NAME
 
 func _on_library_unsaved() -> void:
-	_button.set_text(BUTTON_NAME + "(*)")
+	_dock.name = DOCK_NAME + "(*)"
 
 
 func _on_open_asset_request(path: String) -> void:

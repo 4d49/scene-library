@@ -142,7 +142,7 @@ func _update_position_new_collection_btn() -> void:
 	_all_tabs_list.set_visible(_collec_tab_bar.get_offset_buttons_visible())
 
 
-func _enter_tree() -> void:
+func _ready() -> void:
 	_cache_enabled = get_or_create_project_setting(PROJECT_SETTING_CACHE_ENABLED, true)
 	_cache_path = get_or_create_project_setting(PROJECT_SETTING_CACHE_PATH, "res://.godot/thumb_cache")
 
