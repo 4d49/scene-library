@@ -19,6 +19,7 @@ func _enter_tree() -> void:
 	_dock = EditorDock.new()
 	_dock.name = DOCK_NAME
 	_dock.default_slot = EditorDock.DOCK_SLOT_BOTTOM
+	_dock.available_layouts = EditorDock.DOCK_LAYOUT_ALL
 	_dock.add_child(_editor)
 	add_dock(_dock)
 	_editor.open_asset_request.connect(_on_open_asset_request)
