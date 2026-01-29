@@ -1045,6 +1045,7 @@ func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) ->
 		return callback.call()
 
 	var instance: Node = packed_scene.instantiate()
+	_disable_node_processing(instance)
 
 	_viewport.call_deferred(&"add_child", instance)
 	await instance.ready
@@ -1076,6 +1077,12 @@ func _create_thumb(item: Dictionary[StringName, Variant], callback: Callable) ->
 	await instance.tree_exited
 
 	callback.call()
+
+func _disable_node_processing(node: Node) -> void:
+	node.set_process_mode(Node.PROCESS_MODE_DISABLED)
+	
+	for child in node.get_children():
+		_disable_node_processing(child)
 
 func _thread_process() -> void:
 	var semaphore := Semaphore.new()
