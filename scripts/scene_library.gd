@@ -4,7 +4,7 @@
 extends MarginContainer
 
 
-signal library_changed
+signal collection_count_changed
 
 signal library_unsaved
 signal library_saved
@@ -366,7 +366,7 @@ func _ready() -> void:
 	_thread = Thread.new()
 	_thread.start(_thread_process)
 
-	library_changed.connect(update_tabs)
+	collection_count_changed.connect(update_tabs)
 
 	collection_changed.connect(update_item_list)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
@@ -466,7 +466,7 @@ func set_current_library(library: AssetLibrary) -> void:
 		return
 
 	_curr_lib = library
-	library_changed.emit()
+	update_tabs()
 	# Switch to the first tab.
 	_collec_tab_bar.set_current_tab(0)
 
@@ -488,7 +488,7 @@ func create_collection(collection_name: String) -> void:
 	collection.name = collection_name
 	_curr_lib.add_collection(collection)
 
-	library_changed.emit()
+	collection_count_changed.emit()
 	mark_unsaved()
 
 	# Switch to the last tab.
@@ -498,7 +498,7 @@ func create_collection(collection_name: String) -> void:
 func remove_collection(index: int) -> void:
 	_curr_lib.remove_collection(index)
 
-	library_changed.emit()
+	collection_count_changed.emit()
 	mark_unsaved()
 
 	# Swith to the prev tab.
