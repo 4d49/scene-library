@@ -1128,7 +1128,7 @@ func _on_collection_tab_close_pressed(tab: int) -> void:
 
 
 func _on_collection_tab_rmb_clicked(tab: int) -> void:
-	var collection: Dictionary = _collec_tab_bar.get_tab_metadata(tab)
+	var collection: AssetCollection = _collec_tab_bar.get_tab_metadata(tab)
 	if is_instance_valid(_collec_context_menu):
 		_collec_context_menu.queue_free()
 
@@ -1197,14 +1197,13 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 		)
 	self.add_child(_collec_context_menu)
 
-	if collection.is_read_only(): # If "null" collection.
-		# BUG: You can't see it because the tab is disabled.
-		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
-	else:
+	if is_instance_valid(collection):
 		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
 		_collec_context_menu.add_separator()
 		_collec_context_menu.add_item("Rename Collection", CollectionTabMenu.RENAME)
 		_collec_context_menu.add_item("Delete Collection", CollectionTabMenu.DELETE)
+	else:
+		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
 
 	_collec_context_menu.popup(Rect2i(get_screen_position() + get_local_mouse_position(), Vector2i.ZERO))
 
