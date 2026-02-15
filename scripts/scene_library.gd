@@ -412,11 +412,18 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	if data is Dictionary:
-		var files: PackedStringArray = data["files"]
+	if data is not Dictionary:
+		return
 
-		for path: String in files:
-			create_asset(path)
+	for path: String in data.files:
+		assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
+
+		var id: int = get_or_create_valid_uid(path)
+		var asset: Asset = create_asset(id, ResourceUID.id_to_text(id), path)
+		_curr_collec.add_asset(asset)
+
+		collection_changed.emit()
+		mark_unsaved()
 
 
 ## Retrieves or creates an editor setting with a default value.
@@ -567,7 +574,7 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 
 	return thumb
 
-func _create_asset(id: int, uid: String, path: String) -> Asset:
+func create_asset(id: int, uid: String, path: String) -> Asset:
 	return Asset.new(id, path, _get_or_create_thumbnail(id, path))
 
 
@@ -589,17 +596,6 @@ static func get_or_create_valid_uid(path: String) -> int:
 		ResourceUID.add_id(id, path)
 
 	return id
-
-
-func create_asset(path: String) -> void:
-	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
-
-	var id: int = get_or_create_valid_uid(path)
-	var asset: Asset = _create_asset(id, ResourceUID.id_to_text(id), path)
-	_curr_collec.add_asset(asset)
-
-	collection_changed.emit()
-	mark_unsaved()
 
 
 func remove_asset(id: int) -> bool:
@@ -854,7 +850,7 @@ func _deserialize_asset(asset: Dictionary) -> Asset:
 	else:
 		return null
 
-	return _create_asset(id, uid, path)
+	return create_asset(id, uid, path)
 
 func _deserialize_assets(assets: Array) -> Array[Asset]:
 	var deserialized: Array[Asset] = []
