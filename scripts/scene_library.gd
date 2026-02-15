@@ -640,7 +640,7 @@ func update_tabs() -> void:
 	_mode_thumb_btn.set_disabled(not is_valid)
 	_mode_list_btn.set_disabled(not is_valid)
 
-	if is_valid and _curr_lib.get_collection_count():
+	if is_valid and not _curr_lib.is_empty():
 		_collec_tab_bar.set_tab_count(_curr_lib.get_collection_count())
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_ACTIVE_ONLY)
 

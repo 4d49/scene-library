@@ -73,3 +73,8 @@ func get_collections() -> Array[AssetCollection]:
 # Gets the number of collections in the library.
 func get_collection_count() -> int:
 	return _collections.size()
+
+
+# Checks if the library contains no collections.
+func is_empty() -> bool:
+	return _collections.is_empty()
