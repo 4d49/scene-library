@@ -52,7 +52,7 @@ enum AssetContextMenu {
 
 const Asset: GDScript = preload("asset.gd")
 const AssetCollection: GDScript = preload("asset_collection.gd")
-const AssetLibrary: GDScript = preload("asset_library.gd")
+const CollectionLibrary: GDScript = preload("collection_library.gd")
 
 
 const EDITOR_SETTING_THUMBNAIL_MODE: String = "addons/scene_library/thumbnail/mode"
@@ -127,7 +127,7 @@ var _thread_work: bool = true
 
 var _saved: bool = true
 
-var _curr_lib: AssetLibrary = null
+var _curr_lib: CollectionLibrary = null
 var _curr_collec: AssetCollection = null
 
 
@@ -468,7 +468,7 @@ func is_saved() -> bool:
 	return _saved
 
 
-func set_current_library(library: AssetLibrary) -> void:
+func set_current_library(library: CollectionLibrary) -> void:
 	if is_same(_curr_lib, library):
 		return
 
@@ -477,7 +477,7 @@ func set_current_library(library: AssetLibrary) -> void:
 	# Switch to the first tab.
 	_collec_tab_bar.set_current_tab(0)
 
-func get_current_library() -> AssetLibrary:
+func get_current_library() -> CollectionLibrary:
 	return _curr_lib
 
 
@@ -787,7 +787,7 @@ func _serialize_collection(collection: AssetCollection) -> Dictionary:
 		"assets": _serialize_assets(collection.get_assets()),
 	}
 
-func _serialize_library(library: AssetLibrary) -> Array[Dictionary]:
+func _serialize_library(library: CollectionLibrary) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
 	serialized.resize(library.get_collection_count())
 
@@ -797,7 +797,7 @@ func _serialize_library(library: AssetLibrary) -> Array[Dictionary]:
 	return serialized
 
 
-func _cfg_save_library(library: AssetLibrary, path: String) -> void:
+func _cfg_save_library(library: CollectionLibrary, path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var config := ConfigFile.new()
@@ -806,7 +806,7 @@ func _cfg_save_library(library: AssetLibrary, path: String) -> void:
 	var error := config.save(path)
 	assert(error == OK, error_string(error))
 
-func _json_save_library(library: AssetLibrary, path: String) -> void:
+func _json_save_library(library: CollectionLibrary, path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -871,8 +871,8 @@ func _deserialize_collection(collection: Dictionary) -> AssetCollection:
 
 	return deserialized
 
-func _deserialize_library(library: Array) -> AssetLibrary:
-	var deserialized: AssetLibrary = AssetLibrary.new()
+func _deserialize_library(library: Array) -> CollectionLibrary:
+	var deserialized: CollectionLibrary = CollectionLibrary.new()
 
 	for i: int in library.size():
 		deserialized.add_collection(_deserialize_collection(library[i]))
@@ -880,7 +880,7 @@ func _deserialize_library(library: Array) -> AssetLibrary:
 	return deserialized
 
 
-func _load_cfg(path: String) -> AssetLibrary:
+func _load_cfg(path: String) -> CollectionLibrary:
 	var config := ConfigFile.new()
 
 	var error := config.load(path)
@@ -892,7 +892,7 @@ func _load_cfg(path: String) -> AssetLibrary:
 
 	return null
 
-func _load_json(path: String) -> AssetLibrary:
+func _load_json(path: String) -> CollectionLibrary:
 	var json := JSON.new()
 
 	var error := json.parse(FileAccess.get_file_as_string(path))
@@ -905,7 +905,7 @@ func _load_json(path: String) -> AssetLibrary:
 	return null
 
 func load_library(path: String) -> void:
-	var library: AssetLibrary = null
+	var library: CollectionLibrary = null
 
 	if FileAccess.file_exists(path):
 		var extension: String = path.get_extension()
@@ -1058,7 +1058,7 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	if not _thumbnails.has(ResourceLoader.get_resource_uid(new_file)):
 		return
 
-	# TODO: Следует переместить логику в AssetLibrary.
+	# TODO: Следует переместить логику в CollectionLibrary.
 	for collection: AssetCollection in _curr_lib.get_collections():
 		var asset: Asset = collection.find_asset_by_path(old_file)
 		if is_instance_valid(asset):
@@ -1205,7 +1205,7 @@ func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 	match option:
 		# TODO: Add a feature to check if the current library is saved.
 		LibraryMenu.NEW:
-			set_current_library(AssetLibrary.new())
+			set_current_library(CollectionLibrary.new())
 
 		LibraryMenu.OPEN:
 			_popup_file_dialog(_open_dialog)
