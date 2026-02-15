@@ -4,6 +4,9 @@
 extends RefCounted
 
 
+signal changed
+
+
 const Asset: GDScript = preload("asset.gd")
 
 
