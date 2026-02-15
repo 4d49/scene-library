@@ -405,7 +405,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 		if not rec_ext.has(extension):
 			return false
 
-		if has_asset_path(file) or not is_valid_scene_file(file):
+		if _curr_collec.has_asset_path(file) or not is_valid_scene_file(file):
 			return false
 
 	return true
@@ -629,10 +629,6 @@ func set_current_collection(collection: AssetCollection) -> void:
 
 func get_current_collection() -> AssetCollection:
 	return _curr_collec
-
-
-func has_asset_path(path: String) -> bool:
-	return _curr_collec.has_asset_path(path)
 
 
 func update_tabs() -> void:
