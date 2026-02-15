@@ -656,6 +656,10 @@ func update_tabs() -> void:
 
 
 func update_item_list() -> void:
+	if not is_instance_valid(_curr_collec):
+		_item_list.set_item_count(0)
+		return
+
 	_item_list.set_item_count(_curr_collec.get_size())
 
 	var filter: String = _asset_filter_line.get_text()
