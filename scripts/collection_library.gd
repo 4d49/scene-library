@@ -32,13 +32,19 @@ func set_path(path: String) -> void:
 func add_collection(collection: AssetCollection) -> void:
 	assert(is_instance_valid(collection), "Invalid collection provided to add_collection")
 
+	if not collection.changed.is_connected(changed.emit):
+		collection.changed.connect(changed.emit)
+
 	_collections.push_back(collection)
 	changed.emit()
 
 
 ## Removes a collection from the library by index.
 func remove_collection(index: int) -> void:
-	_collections.remove_at(index)
+	var collection: AssetCollection = _collections.pop_at(index)
+	if is_instance_valid(collection) and collection.changed.is_connected(changed.emit):
+		collection.changed.disconnect(changed.emit)
+
 	changed.emit()
 
 ## Removes a collection from the library by reference.
