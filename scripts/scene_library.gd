@@ -504,9 +504,9 @@ func remove_collection(index: int) -> void:
 	# Swith to the prev tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
+
 func show_remove_collection_dialog(index: int) -> void:
-	var assets: Array[Asset] = _curr_lib.get_collection(index).assets
-	if assets.is_empty():
+	if _curr_lib.get_collection(index).is_empty():
 		return remove_collection(index)
 
 	if is_instance_valid(_remove_collec_dialog):
@@ -601,30 +601,21 @@ func create_asset(path: String) -> void:
 	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
 
 	var id: int = get_or_create_valid_uid(path)
-	var new_asset: Asset = _create_asset(id, ResourceUID.id_to_text(id), path)
-
-	var assets: Array[Asset] = _curr_collec.assets
-	assets.push_back(new_asset)
+	var asset: Asset = _create_asset(id, ResourceUID.id_to_text(id), path)
+	_curr_collec.add_asset(asset)
 
 	collection_changed.emit()
 	mark_unsaved()
 
 
 func remove_asset(id: int) -> bool:
-	var assets: Array[Asset] = _curr_collec.assets
+	if not _curr_collec.erase_asset_by_id(id):
+		return false
 
-	for i: int in assets.size():
-		if assets[i].id != id:
-			continue
+	collection_changed.emit()
+	mark_unsaved()
 
-		assets.remove_at(i)
-
-		collection_changed.emit()
-		mark_unsaved()
-
-		return true
-
-	return false
+	return true
 
 
 func set_current_collection(collection: AssetCollection) -> void:
@@ -641,11 +632,7 @@ func get_current_collection() -> AssetCollection:
 
 
 func has_asset_path(path: String) -> bool:
-	for asset: Asset in _curr_collec.assets:
-		if asset.path == path:
-			return true
-
-	return false
+	return _curr_collec.has_asset_path(path)
 
 
 func update_tabs() -> void:
@@ -681,14 +668,14 @@ func update_tabs() -> void:
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
 
+
 func update_item_list() -> void:
-	var assets: Array[Asset] = _curr_collec.assets
-	_item_list.set_item_count(assets.size())
+	_item_list.set_item_count(_curr_collec.get_size())
 
 	var filter: String = _asset_filter_line.get_text()
 
 	var index: int = 0
-	for asset: Asset in assets:
+	for asset: Asset in _curr_collec.get_assets():
 		var path: String = asset.path
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
@@ -723,20 +710,18 @@ static func sort_asset_ascending(a: Asset, b: Asset) -> bool:
 static func sort_asset_descending(a: Asset, b: Asset) -> bool:
 	return a.path.get_file() > b.path.get_file()
 
-static func sort_assets(assets: Array[Asset], sort_mode: SortMode) -> void:
-	if sort_mode == SortMode.NAME:
-		assets.sort_custom(sort_asset_ascending)
-	else:
-		assets.sort_custom(sort_asset_descending)
 
 func set_sort_mode(sort_mode: SortMode) -> void:
 	if is_same(_sort_mode, sort_mode):
 		return
 
+	if sort_mode == SortMode.NAME:
+		_curr_collec.sort(sort_asset_ascending)
+	else:
+		_curr_collec.sort(sort_asset_descending)
+
 	_sort_mode = sort_mode
 	set_editor_setting(EDITOR_SETTING_SORT_MODE, sort_mode)
-	sort_assets(_curr_collec.assets, _sort_mode)
-
 	collection_changed.emit()
 
 func get_sort_mode() -> SortMode:
@@ -813,7 +798,7 @@ func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 func _serialize_collection(collection: AssetCollection) -> Dictionary:
 	return {
 		"name": collection.get_name(),
-		"assets": _serialize_assets(collection.assets),
+		"assets": _serialize_assets(collection.get_assets()),
 	}
 
 func _serialize_library(library: AssetLibrary) -> Array[Dictionary]:
@@ -875,7 +860,6 @@ func _deserialize_asset(asset: Dictionary) -> Asset:
 
 		if not ResourceUID.has_id(id):
 			ResourceUID.add_id(id, path)
-
 	# Invalid asset.
 	else:
 		return null
@@ -890,13 +874,14 @@ func _deserialize_assets(assets: Array) -> Array[Asset]:
 		if is_instance_valid(deserialized_asset):
 			deserialized.push_back(deserialized_asset)
 
-	sort_assets(deserialized, _sort_mode)
 	return deserialized
 
 func _deserialize_collection(collection: Dictionary) -> AssetCollection:
 	var deserialized: AssetCollection = AssetCollection.new()
 	deserialized.set_name(collection.name)
-	deserialized.assets = _deserialize_assets(collection.assets)
+
+	for asset: Asset in _deserialize_assets(collection.assets):
+		deserialized.add_asset(asset)
 
 	return deserialized
 
@@ -1087,12 +1072,11 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	if not _thumbnails.has(ResourceLoader.get_resource_uid(new_file)):
 		return
 
-	# TODO: Следует переместить логику в AssetCollection.
+	# TODO: Следует переместить логику в AssetLibrary.
 	for collection: AssetCollection in _curr_lib.get_collections():
-		for asset: Asset in collection.assets:
-			if asset.path == old_file:
-				asset.path = new_file
-				break
+		var asset: Asset = collection.find_asset_by_path(old_file)
+		if is_instance_valid(asset):
+			asset.path = new_file
 
 	collection_changed.emit()
 
@@ -1103,15 +1087,8 @@ func handle_file_removed(file: String) -> void:
 	# And we have to go through all collections and assets.
 	var removed: int = 0
 	for collection: AssetCollection in _curr_lib.get_collections():
-		var assets: Array[Asset] = collection.assets
-
-		for i: int in assets.size():
-			if assets[i].path != file:
-				continue
-
-			assets.remove_at(i)
+		if collection.erase_asset_by_path(file):
 			removed += 1
-			break
 
 	if removed:
 		collection_changed.emit()
@@ -1360,16 +1337,16 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				DisplayServer.clipboard_set(asset.path)
 			AssetContextMenu.COPY_UID:
 				DisplayServer.clipboard_set(asset.uid)
+			# BUG: If we first perform an asset search and then delete them,
+			# the assets will be deleted with incorrect indices.
 			AssetContextMenu.DELETE_ASSET:
-				var assets: Array[Asset] = _curr_collec.assets
-
 				if selected_assets.size() == 1:
-					assets.remove_at(selected_assets[0])
+					_curr_collec.remove_asset(selected_assets[0])
 				else:
 					selected_assets.reverse()
 
 					for i: int in selected_assets:
-						assets.remove_at(i)
+						_curr_collec.remove_asset(i)
 
 				collection_changed.emit()
 				mark_unsaved()
