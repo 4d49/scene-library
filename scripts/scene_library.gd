@@ -423,7 +423,6 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 		_curr_collec.add_asset(asset)
 
 		collection_changed.emit()
-		mark_unsaved()
 
 
 ## Retrieves or creates an editor setting with a default value.
@@ -472,7 +471,13 @@ func set_current_library(library: CollectionLibrary) -> void:
 	if is_same(_curr_lib, library):
 		return
 
+	if is_instance_valid(_curr_lib) and _curr_lib.changed.is_connected(mark_unsaved):
+		_curr_lib.changed.disconnect(mark_unsaved)
+
 	_curr_lib = library
+	if is_instance_valid(library) and not library.changed.is_connected(mark_unsaved):
+		library.changed.connect(mark_unsaved)
+
 	update_tabs()
 	# Switch to the first tab.
 	_collec_tab_bar.set_current_tab(0)
@@ -496,18 +501,13 @@ func create_collection(collection_name: String) -> void:
 	_curr_lib.add_collection(collection)
 
 	collection_count_changed.emit()
-	mark_unsaved()
-
 	# Switch to the last tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_tab_count() - 1)
 
 
 func remove_collection(index: int) -> void:
 	_curr_lib.remove_collection(index)
-
 	collection_count_changed.emit()
-	mark_unsaved()
-
 	# Swith to the prev tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
@@ -603,8 +603,6 @@ func remove_asset(id: int) -> bool:
 		return false
 
 	collection_changed.emit()
-	mark_unsaved()
-
 	return true
 
 
@@ -1153,7 +1151,6 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				_rename_collec_window.confirmed.connect(func() -> void:
 					collection.set_name(line_edit.get_text())
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
-					mark_unsaved()
 				)
 
 				self.add_child(_rename_collec_window)
@@ -1339,7 +1336,6 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 						_curr_collec.remove_asset(i)
 
 				collection_changed.emit()
-				mark_unsaved()
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
 				show_in_file_system_request.emit(asset.get_path())
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
