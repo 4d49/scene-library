@@ -40,7 +40,7 @@ func get_size() -> int:
 ## Adds an asset to this collection
 func add_asset(asset: Asset) -> void:
 	assert(is_instance_valid(asset), "Asset must be a valid instance")
-	assert(not has_asset_id(asset.id), "Asset with this ID already exists in collection")
+	assert(not has_asset_id(asset.get_id()), "Asset with this ID already exists in collection")
 
 	_assets.push_back(asset)
 	changed.emit()
@@ -59,7 +59,7 @@ func get_asset(index: int) -> Asset:
 ## Returns null if no asset with the given ID is found
 func find_asset_by_id(asset_id: int) -> Asset:
 	for asset: Asset in _assets:
-		if asset.id == asset_id:
+		if asset.get_id() == asset_id:
 			return asset
 
 	return null
@@ -68,7 +68,7 @@ func find_asset_by_id(asset_id: int) -> Asset:
 ## Returns null if no asset with the given path is found
 func find_asset_by_path(asset_path: String) -> Asset:
 	for asset: Asset in _assets:
-		if asset.path == asset_path:
+		if asset.get_path() == asset_path:
 			return asset
 
 	return null
@@ -85,7 +85,7 @@ func has_asset_path(asset_path: String) -> bool:
 ## Returns true if an asset was removed, false if not found
 func erase_asset_by_id(asset_id: int) -> bool:
 	for i: int in _assets.size():
-		if _assets[i].id == asset_id:
+		if _assets[i].get_id() == asset_id:
 			remove_asset(i)
 			return true
 
@@ -95,7 +95,7 @@ func erase_asset_by_id(asset_id: int) -> bool:
 ## Returns true if an asset was removed, false if not found
 func erase_asset_by_path(asset_path: String) -> bool:
 	for i: int in _assets.size():
-		if _assets[i].path == asset_path:
+		if _assets[i].get_path() == asset_path:
 			remove_asset(i)
 			return true
 

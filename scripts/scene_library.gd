@@ -568,13 +568,7 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 	return thumb
 
 func _create_asset(id: int, uid: String, path: String) -> Asset:
-	var asset: Asset = Asset.new()
-	asset.id = id
-	asset.uid = uid
-	asset.path = path
-	asset.thumb = _get_or_create_thumbnail(id, path)
-
-	return asset
+	return Asset.new(id, path, _get_or_create_thumbnail(id, path))
 
 
 static func is_valid_scene_file(path: String) -> bool:
@@ -672,12 +666,12 @@ func update_item_list() -> void:
 
 	var index: int = 0
 	for asset: Asset in _curr_collec.get_assets():
-		var path: String = asset.path
+		var path: String = asset.get_path()
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
 
 		_item_list.set_item_text(index, path.get_file().get_basename())
-		_item_list.set_item_icon(index, asset.thumb)
+		_item_list.set_item_icon(index, asset.get_thumbnail())
 		# NOTE: This tooltip will be hidden because used the custom tooltip.
 		_item_list.set_item_tooltip(index, path)
 		_item_list.set_item_metadata(index, asset)
@@ -780,7 +774,7 @@ func show_create_collection_dialog() -> AcceptDialog:
 
 
 func _serialize_asset(asset: Asset) -> Dictionary:
-	return {"uid": asset.uid, "path": asset.path}
+	return {"uid": asset.get_uid(), "path": asset.get_path()}
 
 func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
@@ -1072,7 +1066,7 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	for collection: AssetCollection in _curr_lib.get_collections():
 		var asset: Asset = collection.find_asset_by_path(old_file)
 		if is_instance_valid(asset):
-			asset.path = new_file
+			asset.set_path(new_file)
 
 	collection_changed.emit()
 
@@ -1259,7 +1253,7 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 
 	for i: int in _item_list.get_item_count():
 		var asset: Asset = _item_list.get_item_metadata(i)
-		_item_list.set_item_icon(i, asset.thumb)
+		_item_list.set_item_icon(i, asset.get_thumbnail())
 
 	_update_thumb_icon_size(display_mode)
 
@@ -1326,13 +1320,13 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 		match option:
 			AssetContextMenu.OPEN_ASSET:
-				open_asset_request.emit(asset.path)
+				open_asset_request.emit(asset.get_path())
 			AssetContextMenu.INHERIT_ASSET:
-				inherit_asset_request.emit(asset.path)
+				inherit_asset_request.emit(asset.get_path())
 			AssetContextMenu.COPY_PATH:
-				DisplayServer.clipboard_set(asset.path)
+				DisplayServer.clipboard_set(asset.get_path())
 			AssetContextMenu.COPY_UID:
-				DisplayServer.clipboard_set(asset.uid)
+				DisplayServer.clipboard_set(asset.get_uid())
 			# BUG: If we first perform an asset search and then delete them,
 			# the assets will be deleted with incorrect indices.
 			AssetContextMenu.DELETE_ASSET:
@@ -1347,13 +1341,13 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 				collection_changed.emit()
 				mark_unsaved()
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
-				show_in_file_system_request.emit(asset.path)
+				show_in_file_system_request.emit(asset.get_path())
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
-				show_in_file_manager_request.emit(asset.path)
+				show_in_file_manager_request.emit(asset.get_path())
 			AssetContextMenu.REFRESH:
 				for i: int in selected_assets:
 					asset = _item_list.get_item_metadata(i)
-					_queue_update_thumbnail(asset.id)
+					_queue_update_thumbnail(asset.get_id())
 		)
 	self.add_child(_item_context_menu)
 
@@ -1388,7 +1382,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 func _on_item_list_item_activated(index: int) -> void:
 	var asset: Asset = _item_list.get_item_metadata(index)
-	open_asset_request.emit(asset.path)
+	open_asset_request.emit(asset.get_path())
 
 
 func _on_save_timer_timeout() -> void:
@@ -1443,7 +1437,7 @@ class AssetItemList extends ItemList:
 		var files := PackedStringArray()
 		for i: int in get_selected_items():
 			var asset: Asset = get_item_metadata(i)
-			files.push_back(asset.path)
+			files.push_back(asset.get_path())
 
 		set_drag_preview(_create_drag_preview(files))
 
@@ -1465,11 +1459,11 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
-		thumb_rect.set_texture(asset.thumb)
+		thumb_rect.set_texture(asset.get_thumbnail())
 		vbox.add_child(thumb_rect)
 
 		var label := Label.new()
-		label.set_text(asset.path)
+		label.set_text(asset.get_path())
 		vbox.add_child(label)
 
 		return vbox
