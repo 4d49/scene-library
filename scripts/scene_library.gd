@@ -50,6 +50,9 @@ enum AssetContextMenu {
 }
 
 
+const Asset: GDScript = preload("asset.gd")
+
+
 const EDITOR_SETTING_THUMBNAIL_MODE: String = "addons/scene_library/thumbnail/mode"
 const EDITOR_SETTING_THUMBNAIL_GRID_SIZE: String = "addons/scene_library/thumbnail/grid_size"
 const EDITOR_SETTING_THUMBNAIL_LIST_SIZE: String = "addons/scene_library/thumbnail/list_size"
@@ -496,7 +499,7 @@ func has_collection(collection_name: String) -> bool:
 func create_collection(collection_name: String) -> void:
 	assert(not has_collection(collection_name), "Collection with this name already exists.")
 
-	var assets: Array[Dictionary] = []
+	var assets: Array[Asset] = []
 	var new_collection: Dictionary[StringName, Variant] = {
 		&"name": collection_name,
 		&"assets": assets,
@@ -521,7 +524,7 @@ func remove_collection(index: int) -> void:
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
 func show_remove_collection_dialog(index: int) -> void:
-	var assets: Array[Dictionary] = _curr_lib[index].assets
+	var assets: Array[Asset] = _curr_lib[index].assets
 	if assets.is_empty():
 		return remove_collection(index)
 
@@ -583,13 +586,14 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 
 	return thumb
 
-func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName, Variant]:
-	return {
-		&"id": id,
-		&"uid": uid,
-		&"path": path,
-		&"thumb": _get_or_create_thumbnail(id, path),
-	}
+func _create_asset(id: int, uid: String, path: String) -> Asset:
+	var asset: Asset = Asset.new()
+	asset.id = id
+	asset.uid = uid
+	asset.path = path
+	asset.thumb = _get_or_create_thumbnail(id, path)
+
+	return asset
 
 
 static func is_valid_scene_file(path: String) -> bool:
@@ -616,9 +620,9 @@ func create_asset(path: String) -> void:
 	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
 
 	var id: int = get_or_create_valid_uid(path)
-	var new_asset: Dictionary[StringName, Variant] = _create_asset(id, ResourceUID.id_to_text(id), path)
+	var new_asset: Asset = _create_asset(id, ResourceUID.id_to_text(id), path)
 
-	var assets: Array[Dictionary] = _curr_collec.assets
+	var assets: Array[Asset] = _curr_collec.assets
 	assets.push_back(new_asset)
 
 	collection_changed.emit()
@@ -626,7 +630,7 @@ func create_asset(path: String) -> void:
 
 
 func remove_asset(id: int) -> bool:
-	var assets: Array[Dictionary] = _curr_collec.assets
+	var assets: Array[Asset] = _curr_collec.assets
 
 	for i: int in assets.size():
 		if assets[i].id != id:
@@ -656,7 +660,7 @@ func get_current_collection() -> Dictionary[StringName, Variant]:
 
 
 func has_asset_path(path: String) -> bool:
-	for asset: Dictionary in _curr_collec.assets:
+	for asset: Asset in _curr_collec.assets:
 		if asset.path == path:
 			return true
 
@@ -696,13 +700,13 @@ func update_tabs() -> void:
 	_collec_tab_bar.size_flags_changed.emit()
 
 func update_item_list() -> void:
-	var assets: Array[Dictionary] = _curr_collec.assets
+	var assets: Array[Asset] = _curr_collec.assets
 	_item_list.set_item_count(assets.size())
 
 	var filter: String = _asset_filter_line.get_text()
 
 	var index: int = 0
-	for asset: Dictionary in assets:
+	for asset: Asset in assets:
 		var path: String = asset.path
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
@@ -731,13 +735,13 @@ func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
 
-static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+static func sort_asset_ascending(a: Asset, b: Asset) -> bool:
 	return a.path.get_file() < b.path.get_file()
 
-static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+static func sort_asset_descending(a: Asset, b: Asset) -> bool:
 	return a.path.get_file() > b.path.get_file()
 
-static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
+static func sort_assets(assets: Array[Asset], sort_mode: SortMode) -> void:
 	if sort_mode == SortMode.NAME:
 		assets.sort_custom(sort_asset_ascending)
 	else:
@@ -812,10 +816,10 @@ func show_create_collection_dialog() -> AcceptDialog:
 
 
 
-func _serialize_asset(asset: Dictionary[StringName, Variant]) -> Dictionary:
+func _serialize_asset(asset: Asset) -> Dictionary:
 	return {"uid": asset.uid, "path": asset.path}
 
-func _serialize_assets(assets: Array[Dictionary]) -> Array[Dictionary]:
+func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
 	serialized.resize(assets.size())
 
@@ -872,7 +876,7 @@ func save_library(path: String) -> void:
 	mark_saved()
 
 
-func _deserialize_asset(asset: Dictionary) -> Dictionary[StringName, Variant]:
+func _deserialize_asset(asset: Dictionary) -> Asset:
 	var uid: String = asset.get("uid", "")
 	var path: String = asset.get("path", "")
 
@@ -890,21 +894,19 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary[StringName, Variant]:
 		if not ResourceUID.has_id(id):
 			ResourceUID.add_id(id, path)
 
-	# Invalid assset.
+	# Invalid asset.
 	else:
-		return {}
+		return null
 
 	return _create_asset(id, uid, path)
 
-func _deserialize_assets(assets: Array) -> Array[Dictionary]:
-	var deserialized: Array[Dictionary] = []
+func _deserialize_assets(assets: Array) -> Array[Asset]:
+	var deserialized: Array[Asset] = []
 
 	for asset: Dictionary in assets:
-		asset = _deserialize_asset(asset)
-		if asset.is_empty():
-			continue
-
-		deserialized.push_back(asset)
+		var deserialized_asset: Asset = _deserialize_asset(asset)
+		if is_instance_valid(deserialized_asset):
+			deserialized.push_back(deserialized_asset)
 
 	sort_assets(deserialized, _sort_mode)
 	return deserialized
@@ -1106,7 +1108,7 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 		return
 
 	for collection: Dictionary in _curr_lib:
-		for asset: Dictionary in collection.assets:
+		for asset: Asset in collection.assets:
 			if asset.path == old_file:
 				asset.path = new_file
 				break
@@ -1120,7 +1122,7 @@ func handle_file_removed(file: String) -> void:
 	# And we have to go through all collections and assets.
 	var removed: int = 0
 	for collection: Dictionary in _curr_lib:
-		var assets: Array[Dictionary] = collection.assets
+		var assets: Array[Asset] = collection.assets
 
 		for i: int in assets.size():
 			if assets[i].path != file:
@@ -1306,7 +1308,7 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 		_mode_list_btn.set_pressed_no_signal(true)
 
 	for i: int in _item_list.get_item_count():
-		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
+		var asset: Asset = _item_list.get_item_metadata(i)
 		_item_list.set_item_icon(i, asset.thumb)
 
 	_update_thumb_icon_size(display_mode)
@@ -1370,7 +1372,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 	_item_context_menu = PopupMenu.new()
 	_item_context_menu.id_pressed.connect(func(option: AssetContextMenu) -> void:
-		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(selected_assets[0])
+		var asset: Asset = _item_list.get_item_metadata(selected_assets[0])
 
 		match option:
 			AssetContextMenu.OPEN_ASSET:
@@ -1382,7 +1384,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 			AssetContextMenu.COPY_UID:
 				DisplayServer.clipboard_set(asset.uid)
 			AssetContextMenu.DELETE_ASSET:
-				var assets: Array[Dictionary] = _curr_collec.assets
+				var assets: Array[Asset] = _curr_collec.assets
 
 				if selected_assets.size() == 1:
 					assets.remove_at(selected_assets[0])
@@ -1435,7 +1437,7 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 
 func _on_item_list_item_activated(index: int) -> void:
-	var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(index)
+	var asset: Asset = _item_list.get_item_metadata(index)
 	open_asset_request.emit(asset.path)
 
 
@@ -1490,7 +1492,7 @@ class AssetItemList extends ItemList:
 
 		var files := PackedStringArray()
 		for i: int in get_selected_items():
-			var asset: Dictionary[StringName, Variant] = get_item_metadata(i)
+			var asset: Asset = get_item_metadata(i)
 			files.push_back(asset.path)
 
 		set_drag_preview(_create_drag_preview(files))
@@ -1502,8 +1504,8 @@ class AssetItemList extends ItemList:
 		if item < 0:
 			return null
 
-		var asset: Dictionary[StringName, Variant] = get_item_metadata(item)
-		if asset.is_empty():
+		var asset: Asset = get_item_metadata(item)
+		if not is_instance_valid(asset):
 			return null
 
 		var vbox := VBoxContainer.new()
