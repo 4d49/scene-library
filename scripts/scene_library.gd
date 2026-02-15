@@ -51,6 +51,7 @@ enum AssetContextMenu {
 
 
 const Asset: GDScript = preload("asset.gd")
+const AssetCollection: GDScript = preload("asset_collection.gd")
 
 
 const EDITOR_SETTING_THUMBNAIL_MODE: String = "addons/scene_library/thumbnail/mode"
@@ -63,8 +64,7 @@ const PROJECT_SETTING_CACHE_PATH: String = "addons/scene_library/cache/path"
 const PROJECT_SETTING_CURRENT_LIBRARY_PATH: String = "addons/scene_library/library/current_library_path"
 
 
-const NULL_LIBRARY: Array[Dictionary] = []
-const NULL_COLLECTION: Dictionary[StringName, Variant] = {}
+const NULL_LIBRARY: Array[AssetCollection] = []
 
 const THUMB_GRID_SIZE: int = 192
 const THUMB_LIST_SIZE: int = 48
@@ -127,11 +127,11 @@ var _thread_sem: Semaphore = null
 var _thread_work: bool = true
 
 var _saved: bool = true
-# INFO: Use key-value pairs to store collections.
-var _curr_lib: Array[Dictionary] = NULL_LIBRARY # Array[Dictionary[StringName, ImageTexture]]
+
+var _curr_lib: Array[AssetCollection] = NULL_LIBRARY
 var _curr_lib_path: String = ""
 
-var _curr_collec: Dictionary[StringName, Variant] = NULL_COLLECTION
+var _curr_collec: AssetCollection = null
 
 
 func _update_position_new_collection_btn() -> void:
@@ -465,7 +465,7 @@ func is_saved() -> bool:
 	return _saved
 
 
-func set_current_library(library: Array[Dictionary]) -> void:
+func set_current_library(library: Array[AssetCollection]) -> void:
 	if is_same(_curr_lib, library):
 		return
 
@@ -474,7 +474,7 @@ func set_current_library(library: Array[Dictionary]) -> void:
 	# Switch to the first tab.
 	_collec_tab_bar.set_current_tab(0)
 
-func get_current_library() -> Array[Dictionary]:
+func get_current_library() -> Array[AssetCollection]:
 	return _curr_lib
 
 
@@ -490,7 +490,7 @@ func get_current_library_path() -> String:
 
 
 func has_collection(collection_name: String) -> bool:
-	for collection: Dictionary in get_current_library():
+	for collection: AssetCollection in get_current_library():
 		if collection.name == collection_name:
 			return true
 
@@ -646,7 +646,7 @@ func remove_asset(id: int) -> bool:
 	return false
 
 
-func set_current_collection(collection: Dictionary[StringName, Variant]) -> void:
+func set_current_collection(collection: AssetCollection) -> void:
 	if is_same(_curr_collec, collection):
 		return
 
@@ -655,7 +655,7 @@ func set_current_collection(collection: Dictionary[StringName, Variant]) -> void
 	_item_list.deselect_all()
 	collection_changed.emit()
 
-func get_current_collection() -> Dictionary[StringName, Variant]:
+func get_current_collection() -> AssetCollection:
 	return _curr_collec
 
 
@@ -694,7 +694,7 @@ func update_tabs() -> void:
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
 		_collec_tab_bar.set_tab_title(0, "[null]")
 		_collec_tab_bar.set_tab_disabled(0, true)
-		_collec_tab_bar.set_tab_metadata(0, NULL_COLLECTION)
+		_collec_tab_bar.set_tab_metadata(0, null)
 
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
@@ -828,13 +828,13 @@ func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 
 	return serialized
 
-func _serialize_collection(collection: Dictionary[StringName, Variant]) -> Dictionary:
+func _serialize_collection(collection: AssetCollection) -> Dictionary:
 	return {
 		"name": collection.name,
 		"assets": _serialize_assets(collection.assets),
 	}
 
-func _serialize_library(library: Array[Dictionary]) -> Array[Dictionary]:
+func _serialize_library(library: Array[AssetCollection]) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
 	serialized.resize(library.size())
 
@@ -844,7 +844,7 @@ func _serialize_library(library: Array[Dictionary]) -> Array[Dictionary]:
 	return serialized
 
 
-func _cfg_save_library(library: Array[Dictionary], path: String) -> void:
+func _cfg_save_library(library: Array[AssetCollection], path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var config := ConfigFile.new()
@@ -853,7 +853,7 @@ func _cfg_save_library(library: Array[Dictionary], path: String) -> void:
 	var error := config.save(path)
 	assert(error == OK, error_string(error))
 
-func _json_save_library(library: Array[Dictionary], path: String) -> void:
+func _json_save_library(library: Array[AssetCollection], path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -911,16 +911,15 @@ func _deserialize_assets(assets: Array) -> Array[Asset]:
 	sort_assets(deserialized, _sort_mode)
 	return deserialized
 
-func _deserialize_collection(collection: Dictionary) -> Dictionary[StringName, Variant]:
-	var deserialized: Dictionary[StringName, Variant] = {
-		&"name": collection[&"name"],
-		&"assets": _deserialize_assets(collection["assets"])
-	}
+func _deserialize_collection(collection: Dictionary) -> AssetCollection:
+	var deserialized: AssetCollection = AssetCollection.new()
+	deserialized.name = collection.name
+	deserialized.assets = _deserialize_assets(collection.assets)
 
 	return deserialized
 
-func _deserialize_library(library: Array) -> Array[Dictionary]:
-	var deserialized: Array[Dictionary] = []
+func _deserialize_library(library: Array) -> Array[AssetCollection]:
+	var deserialized: Array[AssetCollection] = []
 	deserialized.resize(library.size())
 
 	for i: int in library.size():
@@ -929,7 +928,7 @@ func _deserialize_library(library: Array) -> Array[Dictionary]:
 	return deserialized
 
 
-func _load_cfg(path: String) -> Array[Dictionary]:
+func _load_cfg(path: String) -> Array[AssetCollection]:
 	var config := ConfigFile.new()
 
 	var error := config.load(path)
@@ -941,7 +940,7 @@ func _load_cfg(path: String) -> Array[Dictionary]:
 
 	return NULL_LIBRARY
 
-func _load_json(path: String) -> Array[Dictionary]:
+func _load_json(path: String) -> Array[AssetCollection]:
 	var json := JSON.new()
 
 	var error := json.parse(FileAccess.get_file_as_string(path))
@@ -954,7 +953,7 @@ func _load_json(path: String) -> Array[Dictionary]:
 	return NULL_LIBRARY
 
 func load_library(path: String) -> void:
-	var library: Array[Dictionary] = []
+	var library: Array[AssetCollection] = []
 
 	if FileAccess.file_exists(path):
 		var extension: String = path.get_extension()
@@ -1107,7 +1106,7 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	if not _thumbnails.has(ResourceLoader.get_resource_uid(new_file)):
 		return
 
-	for collection: Dictionary in _curr_lib:
+	for collection: AssetCollection in _curr_lib:
 		for asset: Asset in collection.assets:
 			if asset.path == old_file:
 				asset.path = new_file
@@ -1121,7 +1120,7 @@ func handle_file_removed(file: String) -> void:
 	# Because we can't use UID for deleted files.
 	# And we have to go through all collections and assets.
 	var removed: int = 0
-	for collection: Dictionary in _curr_lib:
+	for collection: AssetCollection in _curr_lib:
 		var assets: Array[Asset] = collection.assets
 
 		for i: int in assets.size():
@@ -1262,7 +1261,7 @@ func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 	match option:
 		# TODO: Add a feature to check if the current library is saved.
 		LibraryMenu.NEW:
-			var new_library: Array[Dictionary] = []
+			var new_library: Array[AssetCollection] = []
 			set_current_library(new_library)
 
 			_curr_lib_path = ""
