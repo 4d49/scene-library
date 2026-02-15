@@ -128,8 +128,6 @@ var _thread_work: bool = true
 var _saved: bool = true
 
 var _curr_lib: AssetLibrary = null
-var _curr_lib_path: String = ""
-
 var _curr_collec: AssetCollection = null
 
 
@@ -373,8 +371,7 @@ func _ready() -> void:
 	collection_changed.connect(update_item_list)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	_curr_lib_path = get_or_create_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, "res://addons/scene-library/scene_library.cfg")
-	load_library(_curr_lib_path)
+	load_library(get_or_create_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, "res://addons/scene-library/scene_library.cfg"))
 
 	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
 
@@ -475,17 +472,6 @@ func set_current_library(library: AssetLibrary) -> void:
 
 func get_current_library() -> AssetLibrary:
 	return _curr_lib
-
-
-func set_current_library_path(path: String) -> void:
-	if is_same(_curr_lib_path, path):
-		return
-
-	_curr_lib_path = path
-	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
-
-func get_current_library_path() -> String:
-	return _curr_lib_path
 
 
 func has_collection(collection_name: String) -> bool:
@@ -962,8 +948,9 @@ func load_library(path: String) -> void:
 	if not is_instance_valid(library):
 		return
 
+	library.set_path(path)
 	set_current_library(library)
-	set_current_library_path(path)
+	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
 
 
 func _calculate_node_rect(node: Node) -> Rect2:
@@ -1257,13 +1244,12 @@ func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 		# TODO: Add a feature to check if the current library is saved.
 		LibraryMenu.NEW:
 			set_current_library(AssetLibrary.new())
-			_curr_lib_path = ""
 
 		LibraryMenu.OPEN:
 			_popup_file_dialog(_open_dialog)
 
-		LibraryMenu.SAVE when not _curr_lib_path.is_empty():
-			save_library(_curr_lib_path)
+		LibraryMenu.SAVE when _curr_lib.get_path():
+			save_library(_curr_lib.get_path())
 
 		LibraryMenu.SAVE, LibraryMenu.SAVE_AS:
 			_popup_file_dialog(_save_dialog)
@@ -1434,10 +1420,10 @@ func _on_item_list_item_activated(index: int) -> void:
 
 
 func _on_save_timer_timeout() -> void:
-	if _curr_lib_path.is_empty():
+	if not is_instance_valid(_curr_lib) or _curr_lib.get_path().is_empty():
 		return
 
-	save_library(_curr_lib_path)
+	save_library(_curr_lib.get_path())
 
 
 
