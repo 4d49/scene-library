@@ -11,5 +11,16 @@ const Asset: GDScript = preload("asset.gd")
 
 
 # Represents a collection in the scene library
-var name: String = ""
+var _name: String = ""
+
+
 var assets: Array[Asset] = []
+
+
+func set_name(name: String) -> void:
+	if _name != name:
+		_name = name
+		changed.emit()
+
+func get_name() -> String:
+	return _name

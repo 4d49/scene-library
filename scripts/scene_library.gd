@@ -485,7 +485,7 @@ func create_collection(collection_name: String) -> void:
 	assert(not has_collection(collection_name), "Collection with this name already exists.")
 
 	var collection: AssetCollection = AssetCollection.new()
-	collection.name = collection_name
+	collection.set_name(collection_name)
 	_curr_lib.add_collection(collection)
 
 	collection_count_changed.emit()
@@ -666,11 +666,11 @@ func update_tabs() -> void:
 
 		for i: int in _curr_lib.get_collection_count():
 			var collection: AssetCollection = _curr_lib.get_collection(i)
-			_collec_tab_bar.set_tab_title(i, collection.name)
+			_collec_tab_bar.set_tab_title(i, collection.get_name())
 			_collec_tab_bar.set_tab_disabled(i, false)
 			_collec_tab_bar.set_tab_metadata(i, collection)
 
-			popup.set_item_text(i, collection.name)
+			popup.set_item_text(i, collection.get_name())
 	else:
 		_collec_tab_bar.set_tab_count(1)
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
@@ -812,7 +812,7 @@ func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 
 func _serialize_collection(collection: AssetCollection) -> Dictionary:
 	return {
-		"name": collection.name,
+		"name": collection.get_name(),
 		"assets": _serialize_assets(collection.assets),
 	}
 
@@ -895,7 +895,7 @@ func _deserialize_assets(assets: Array) -> Array[Asset]:
 
 func _deserialize_collection(collection: Dictionary) -> AssetCollection:
 	var deserialized: AssetCollection = AssetCollection.new()
-	deserialized.name = collection.name
+	deserialized.set_name(collection.name)
 	deserialized.assets = _deserialize_assets(collection.assets)
 
 	return deserialized
@@ -1162,7 +1162,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 
 				var line_edit := LineEdit.new()
 				line_edit.set_select_all_on_focus(true)
-				line_edit.set_text(collection.name)
+				line_edit.set_text(collection.get_name())
 				_rename_collec_window.register_text_enter(line_edit)
 
 				# INFO: Disables the ability to create a collection and set a tooltip.
@@ -1184,7 +1184,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				vbox.add_child(line_edit)
 
 				_rename_collec_window.confirmed.connect(func() -> void:
-					collection.name = line_edit.get_text()
+					collection.set_name(line_edit.get_text())
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
 					mark_unsaved()
 				)

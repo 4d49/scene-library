@@ -55,7 +55,7 @@ func get_collection(index: int) -> AssetCollection:
 # Returns the first AssetCollection with matching name, or null if not found.
 func find_collection(collection_name: String) -> AssetCollection:
 	for collection in _collections:
-		if collection.name == collection_name:
+		if collection.get_name() == collection_name:
 			return collection
 
 	return null
