@@ -3,7 +3,7 @@
 A simple and fast add-on for managing 2D and 3D scenes as assets. Organize, search, and open scenes with ease.
 
 > [!IMPORTANT]
-> Only Godot 4.4+ is supported.
+> Only Godot 4.6+ is supported.
 
 > [!WARNING]
 > The add-on is still under development and needs testing!
@@ -36,7 +36,7 @@ A simple and fast add-on for managing 2D and 3D scenes as assets. Organize, sear
 
 # License
 
-Copyright (c) 2023-2025 Mansur Isaev and contributors
+Copyright (c) 2023-2026 Mansur Isaev and contributors
 
 Unless otherwise specified, files in this repository are licensed under the
 MIT license. See [LICENSE.md](LICENSE.md) for more information.

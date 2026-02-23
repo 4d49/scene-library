@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Mansur Isaev and contributors - MIT License
+# Copyright (c) 2023-2026 Mansur Isaev and contributors - MIT License
 # See `LICENSE.md` included in the source distribution for details.
 
 @tool
@@ -43,11 +43,12 @@ func _save_external_data() -> void:
 	if _editor.is_saved():
 		return
 
-	var library_path: String = _editor.get_current_library_path()
-	if library_path.is_empty():
+	# TODO: Should move the logic inside the class.
+	var library := _editor.get_current_library()
+	if not is_instance_valid(library) or library.get_path().is_empty():
 		return
 
-	_editor.save_library(library_path)
+	_editor.save_library(library.get_path())
 
 
 func _on_library_saved() -> void:

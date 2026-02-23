@@ -1,10 +1,10 @@
-# Copyright (c) 2023-2025 Mansur Isaev and contributors - MIT License
+# Copyright (c) 2023-2026 Mansur Isaev and contributors - MIT License
 # See `LICENSE.md` included in the source distribution for details.
 
 extends MarginContainer
 
 
-signal library_changed
+signal collection_count_changed
 
 signal library_unsaved
 signal library_saved
@@ -50,6 +50,11 @@ enum AssetContextMenu {
 }
 
 
+const Asset: GDScript = preload("asset.gd")
+const AssetCollection: GDScript = preload("asset_collection.gd")
+const CollectionLibrary: GDScript = preload("collection_library.gd")
+
+
 const EDITOR_SETTING_THUMBNAIL_MODE: String = "addons/scene_library/thumbnail/mode"
 const EDITOR_SETTING_THUMBNAIL_GRID_SIZE: String = "addons/scene_library/thumbnail/grid_size"
 const EDITOR_SETTING_THUMBNAIL_LIST_SIZE: String = "addons/scene_library/thumbnail/list_size"
@@ -59,9 +64,6 @@ const PROJECT_SETTING_CACHE_ENABLED: String = "addons/scene_library/cache/enable
 const PROJECT_SETTING_CACHE_PATH: String = "addons/scene_library/cache/path"
 const PROJECT_SETTING_CURRENT_LIBRARY_PATH: String = "addons/scene_library/library/current_library_path"
 
-
-const NULL_LIBRARY: Array[Dictionary] = []
-const NULL_COLLECTION: Dictionary[StringName, Variant] = {}
 
 const THUMB_GRID_SIZE: int = 192
 const THUMB_LIST_SIZE: int = 48
@@ -124,11 +126,9 @@ var _thread_sem: Semaphore = null
 var _thread_work: bool = true
 
 var _saved: bool = true
-# INFO: Use key-value pairs to store collections.
-var _curr_lib: Array[Dictionary] = NULL_LIBRARY # Array[Dictionary[StringName, ImageTexture]]
-var _curr_lib_path: String = ""
 
-var _curr_collec: Dictionary[StringName, Variant] = NULL_COLLECTION
+var _curr_lib: CollectionLibrary = null
+var _curr_collec: AssetCollection = null
 
 
 func _update_position_new_collection_btn() -> void:
@@ -366,13 +366,12 @@ func _ready() -> void:
 	_thread = Thread.new()
 	_thread.start(_thread_process)
 
-	library_changed.connect(update_tabs)
+	collection_count_changed.connect(update_tabs)
 
 	collection_changed.connect(update_item_list)
 	asset_display_mode_changed.connect(_update_asset_display_mode)
 
-	_curr_lib_path = get_or_create_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, "res://addons/scene-library/scene_library.cfg")
-	load_library(_curr_lib_path)
+	load_library(get_or_create_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, "res://addons/scene-library/scene_library.cfg"))
 
 	collection_changed.connect(_collec_tab_bar.size_flags_changed.emit)
 
@@ -395,7 +394,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type") != "files":
 		return false
 
-	if _curr_lib.is_read_only() or _curr_collec.is_read_only():
+	if not is_instance_valid(_curr_lib) or not is_instance_valid(_curr_collec):
 		return false
 
 	var files: PackedStringArray = data["files"]
@@ -406,18 +405,24 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 		if not rec_ext.has(extension):
 			return false
 
-		if has_asset_path(file) or not is_valid_scene_file(file):
+		if _curr_collec.has_asset_path(file) or not is_valid_scene_file(file):
 			return false
 
 	return true
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	if data is Dictionary:
-		var files: PackedStringArray = data["files"]
+	if data is not Dictionary:
+		return
 
-		for path: String in files:
-			create_asset(path)
+	for path: String in data.files:
+		assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
+
+		var id: int = get_or_create_valid_uid(path)
+		var asset: Asset = create_asset(id, ResourceUID.id_to_text(id), path)
+		_curr_collec.add_asset(asset)
+
+		collection_changed.emit()
 
 
 ## Retrieves or creates an editor setting with a default value.
@@ -462,67 +467,53 @@ func is_saved() -> bool:
 	return _saved
 
 
-func set_current_library(library: Array[Dictionary]) -> void:
+func set_current_library(library: CollectionLibrary) -> void:
 	if is_same(_curr_lib, library):
 		return
 
+	if is_instance_valid(_curr_lib) and _curr_lib.changed.is_connected(mark_unsaved):
+		_curr_lib.changed.disconnect(mark_unsaved)
+
 	_curr_lib = library
-	library_changed.emit()
+	if is_instance_valid(library) and not library.changed.is_connected(mark_unsaved):
+		library.changed.connect(mark_unsaved)
+
+	update_tabs()
 	# Switch to the first tab.
 	_collec_tab_bar.set_current_tab(0)
 
-func get_current_library() -> Array[Dictionary]:
+func get_current_library() -> CollectionLibrary:
 	return _curr_lib
 
 
-func set_current_library_path(path: String) -> void:
-	if is_same(_curr_lib_path, path):
-		return
-
-	_curr_lib_path = path
-	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
-
-func get_current_library_path() -> String:
-	return _curr_lib_path
-
-
 func has_collection(collection_name: String) -> bool:
-	for collection: Dictionary in get_current_library():
-		if collection.name == collection_name:
-			return true
+	if is_instance_valid(_curr_lib):
+		return _curr_lib.has_collection(collection_name)
 
 	return false
+
 
 func create_collection(collection_name: String) -> void:
 	assert(not has_collection(collection_name), "Collection with this name already exists.")
 
-	var assets: Array[Dictionary] = []
-	var new_collection: Dictionary[StringName, Variant] = {
-		&"name": collection_name,
-		&"assets": assets,
-	}
+	var collection: AssetCollection = AssetCollection.new()
+	collection.set_name(collection_name)
+	_curr_lib.add_collection(collection)
 
-	_curr_lib.push_back(new_collection)
-
-	library_changed.emit()
-	mark_unsaved()
-
+	collection_count_changed.emit()
 	# Switch to the last tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_tab_count() - 1)
 
 
 func remove_collection(index: int) -> void:
-	_curr_lib.remove_at(index)
-
-	library_changed.emit()
-	mark_unsaved()
-
+	_curr_lib.remove_collection(index)
+	collection_count_changed.emit()
 	# Swith to the prev tab.
 	_collec_tab_bar.set_current_tab(_collec_tab_bar.get_current_tab())
 
+
 func show_remove_collection_dialog(index: int) -> void:
-	var assets: Array[Dictionary] = _curr_lib[index].assets
-	if assets.is_empty():
+	if _curr_lib.get_collection(index).is_empty():
 		return remove_collection(index)
 
 	if is_instance_valid(_remove_collec_dialog):
@@ -583,13 +574,8 @@ func _get_or_create_thumbnail(id: int, path: String) -> ImageTexture:
 
 	return thumb
 
-func _create_asset(id: int, uid: String, path: String) -> Dictionary[StringName, Variant]:
-	return {
-		&"id": id,
-		&"uid": uid,
-		&"path": path,
-		&"thumb": _get_or_create_thumbnail(id, path),
-	}
+func create_asset(id: int, uid: String, path: String) -> Asset:
+	return Asset.new(id, path, _get_or_create_thumbnail(id, path))
 
 
 static func is_valid_scene_file(path: String) -> bool:
@@ -612,37 +598,15 @@ static func get_or_create_valid_uid(path: String) -> int:
 	return id
 
 
-func create_asset(path: String) -> void:
-	assert(is_valid_scene_file(path), "PackedScene file was not found or has an invalid extension.")
-
-	var id: int = get_or_create_valid_uid(path)
-	var new_asset: Dictionary[StringName, Variant] = _create_asset(id, ResourceUID.id_to_text(id), path)
-
-	var assets: Array[Dictionary] = _curr_collec.assets
-	assets.push_back(new_asset)
+func remove_asset(id: int) -> bool:
+	if not _curr_collec.erase_asset_by_id(id):
+		return false
 
 	collection_changed.emit()
-	mark_unsaved()
+	return true
 
 
-func remove_asset(id: int) -> bool:
-	var assets: Array[Dictionary] = _curr_collec.assets
-
-	for i: int in assets.size():
-		if assets[i].id != id:
-			continue
-
-		assets.remove_at(i)
-
-		collection_changed.emit()
-		mark_unsaved()
-
-		return true
-
-	return false
-
-
-func set_current_collection(collection: Dictionary[StringName, Variant]) -> void:
+func set_current_collection(collection: AssetCollection) -> void:
 	if is_same(_curr_collec, collection):
 		return
 
@@ -651,64 +615,61 @@ func set_current_collection(collection: Dictionary[StringName, Variant]) -> void
 	_item_list.deselect_all()
 	collection_changed.emit()
 
-func get_current_collection() -> Dictionary[StringName, Variant]:
+func get_current_collection() -> AssetCollection:
 	return _curr_collec
 
 
-func has_asset_path(path: String) -> bool:
-	for asset: Dictionary in _curr_collec.assets:
-		if asset.path == path:
-			return true
-
-	return false
-
-
 func update_tabs() -> void:
-	var is_valid: bool = not _curr_lib.is_read_only() and not _curr_lib.is_empty()
+	var is_valid: bool = is_instance_valid(_curr_lib)
 
 	_asset_filter_line.set_editable(is_valid)
-	_collec_tab_add.set_disabled(_curr_lib.is_read_only())
+	_collec_tab_add.set_disabled(not is_valid)
 	_asset_sort_mode_btn.set_disabled(not is_valid)
 	_mode_thumb_btn.set_disabled(not is_valid)
 	_mode_list_btn.set_disabled(not is_valid)
 
-	if _curr_lib.size():
-		_collec_tab_bar.set_tab_count(_curr_lib.size())
+	if is_valid and not _curr_lib.is_empty():
+		_collec_tab_bar.set_tab_count(_curr_lib.get_collection_count())
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_ACTIVE_ONLY)
 
 		var popup: PopupMenu = _all_tabs_list.get_popup()
-		popup.set_item_count(_curr_lib.size())
+		popup.set_item_count(_curr_lib.get_collection_count())
 
-		for i: int in _curr_lib.size():
-			_collec_tab_bar.set_tab_title(i, _curr_lib[i].name)
+		for i: int in _curr_lib.get_collection_count():
+			var collection: AssetCollection = _curr_lib.get_collection(i)
+			_collec_tab_bar.set_tab_title(i, collection.get_name())
 			_collec_tab_bar.set_tab_disabled(i, false)
-			_collec_tab_bar.set_tab_metadata(i, _curr_lib[i])
+			_collec_tab_bar.set_tab_metadata(i, collection)
 
-			popup.set_item_text(i, _curr_lib[i].name)
+			popup.set_item_text(i, collection.get_name())
 	else:
 		_collec_tab_bar.set_tab_count(1)
 		_collec_tab_bar.set_tab_close_display_policy(TabBar.CLOSE_BUTTON_SHOW_NEVER)
 		_collec_tab_bar.set_tab_title(0, "[null]")
 		_collec_tab_bar.set_tab_disabled(0, true)
-		_collec_tab_bar.set_tab_metadata(0, NULL_COLLECTION)
+		_collec_tab_bar.set_tab_metadata(0, null)
 
 	# INFO: Required to recalculate position of the "new collection" button.
 	_collec_tab_bar.size_flags_changed.emit()
 
+
 func update_item_list() -> void:
-	var assets: Array[Dictionary] = _curr_collec.assets
-	_item_list.set_item_count(assets.size())
+	if not is_instance_valid(_curr_collec):
+		_item_list.set_item_count(0)
+		return
+
+	_item_list.set_item_count(_curr_collec.get_size())
 
 	var filter: String = _asset_filter_line.get_text()
 
 	var index: int = 0
-	for asset: Dictionary in assets:
-		var path: String = asset.path
+	for asset: Asset in _curr_collec.get_assets():
+		var path: String = asset.get_path()
 		if not filter.is_subsequence_ofn(path.get_file()):
 			continue
 
 		_item_list.set_item_text(index, path.get_file().get_basename())
-		_item_list.set_item_icon(index, asset.thumb)
+		_item_list.set_item_icon(index, asset.get_thumbnail())
 		# NOTE: This tooltip will be hidden because used the custom tooltip.
 		_item_list.set_item_tooltip(index, path)
 		_item_list.set_item_metadata(index, asset)
@@ -731,26 +692,24 @@ func get_asset_display_mode() -> DisplayMode:
 	return _asset_display_mode
 
 
-static func sort_asset_ascending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+static func sort_asset_ascending(a: Asset, b: Asset) -> bool:
 	return a.path.get_file() < b.path.get_file()
 
-static func sort_asset_descending(a: Dictionary[StringName, Variant], b: Dictionary[StringName, Variant]) -> bool:
+static func sort_asset_descending(a: Asset, b: Asset) -> bool:
 	return a.path.get_file() > b.path.get_file()
 
-static func sort_assets(assets: Array[Dictionary], sort_mode: SortMode) -> void:
-	if sort_mode == SortMode.NAME:
-		assets.sort_custom(sort_asset_ascending)
-	else:
-		assets.sort_custom(sort_asset_descending)
 
 func set_sort_mode(sort_mode: SortMode) -> void:
 	if is_same(_sort_mode, sort_mode):
 		return
 
+	if sort_mode == SortMode.NAME:
+		_curr_collec.sort(sort_asset_ascending)
+	else:
+		_curr_collec.sort(sort_asset_descending)
+
 	_sort_mode = sort_mode
 	set_editor_setting(EDITOR_SETTING_SORT_MODE, sort_mode)
-	sort_assets(_curr_collec.assets, _sort_mode)
-
 	collection_changed.emit()
 
 func get_sort_mode() -> SortMode:
@@ -812,10 +771,10 @@ func show_create_collection_dialog() -> AcceptDialog:
 
 
 
-func _serialize_asset(asset: Dictionary[StringName, Variant]) -> Dictionary:
-	return {"uid": asset.uid, "path": asset.path}
+func _serialize_asset(asset: Asset) -> Dictionary:
+	return {"uid": asset.get_uid(), "path": asset.get_path()}
 
-func _serialize_assets(assets: Array[Dictionary]) -> Array[Dictionary]:
+func _serialize_assets(assets: Array[Asset]) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
 	serialized.resize(assets.size())
 
@@ -824,23 +783,23 @@ func _serialize_assets(assets: Array[Dictionary]) -> Array[Dictionary]:
 
 	return serialized
 
-func _serialize_collection(collection: Dictionary[StringName, Variant]) -> Dictionary:
+func _serialize_collection(collection: AssetCollection) -> Dictionary:
 	return {
-		"name": collection.name,
-		"assets": _serialize_assets(collection.assets),
+		"name": collection.get_name(),
+		"assets": _serialize_assets(collection.get_assets()),
 	}
 
-func _serialize_library(library: Array[Dictionary]) -> Array[Dictionary]:
+func _serialize_library(library: CollectionLibrary) -> Array[Dictionary]:
 	var serialized: Array[Dictionary] = []
-	serialized.resize(library.size())
+	serialized.resize(library.get_collection_count())
 
-	for i: int in library.size():
-		serialized[i] = _serialize_collection(library[i])
+	for i: int in library.get_collection_count():
+		serialized[i] = _serialize_collection(library.get_collection(i))
 
 	return serialized
 
 
-func _cfg_save_library(library: Array[Dictionary], path: String) -> void:
+func _cfg_save_library(library: CollectionLibrary, path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var config := ConfigFile.new()
@@ -849,7 +808,7 @@ func _cfg_save_library(library: Array[Dictionary], path: String) -> void:
 	var error := config.save(path)
 	assert(error == OK, error_string(error))
 
-func _json_save_library(library: Array[Dictionary], path: String) -> void:
+func _json_save_library(library: CollectionLibrary, path: String) -> void:
 	var serialized: Array[Dictionary] = _serialize_library(library)
 
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -872,7 +831,7 @@ func save_library(path: String) -> void:
 	mark_saved()
 
 
-func _deserialize_asset(asset: Dictionary) -> Dictionary[StringName, Variant]:
+func _deserialize_asset(asset: Dictionary) -> Asset:
 	var uid: String = asset.get("uid", "")
 	var path: String = asset.get("path", "")
 
@@ -889,45 +848,41 @@ func _deserialize_asset(asset: Dictionary) -> Dictionary[StringName, Variant]:
 
 		if not ResourceUID.has_id(id):
 			ResourceUID.add_id(id, path)
-
-	# Invalid assset.
+	# Invalid asset.
 	else:
-		return {}
+		return null
 
-	return _create_asset(id, uid, path)
+	return create_asset(id, uid, path)
 
-func _deserialize_assets(assets: Array) -> Array[Dictionary]:
-	var deserialized: Array[Dictionary] = []
+func _deserialize_assets(assets: Array) -> Array[Asset]:
+	var deserialized: Array[Asset] = []
 
 	for asset: Dictionary in assets:
-		asset = _deserialize_asset(asset)
-		if asset.is_empty():
-			continue
-
-		deserialized.push_back(asset)
-
-	sort_assets(deserialized, _sort_mode)
-	return deserialized
-
-func _deserialize_collection(collection: Dictionary) -> Dictionary[StringName, Variant]:
-	var deserialized: Dictionary[StringName, Variant] = {
-		&"name": collection[&"name"],
-		&"assets": _deserialize_assets(collection["assets"])
-	}
+		var deserialized_asset: Asset = _deserialize_asset(asset)
+		if is_instance_valid(deserialized_asset):
+			deserialized.push_back(deserialized_asset)
 
 	return deserialized
 
-func _deserialize_library(library: Array) -> Array[Dictionary]:
-	var deserialized: Array[Dictionary] = []
-	deserialized.resize(library.size())
+func _deserialize_collection(collection: Dictionary) -> AssetCollection:
+	var deserialized: AssetCollection = AssetCollection.new()
+	deserialized.set_name(collection.name)
+
+	for asset: Asset in _deserialize_assets(collection.assets):
+		deserialized.add_asset(asset)
+
+	return deserialized
+
+func _deserialize_library(library: Array) -> CollectionLibrary:
+	var deserialized: CollectionLibrary = CollectionLibrary.new()
 
 	for i: int in library.size():
-		deserialized[i] = _deserialize_collection(library[i])
+		deserialized.add_collection(_deserialize_collection(library[i]))
 
 	return deserialized
 
 
-func _load_cfg(path: String) -> Array[Dictionary]:
+func _load_cfg(path: String) -> CollectionLibrary:
 	var config := ConfigFile.new()
 
 	var error := config.load(path)
@@ -937,9 +892,9 @@ func _load_cfg(path: String) -> Array[Dictionary]:
 	if data is Array:
 		return _deserialize_library(data)
 
-	return NULL_LIBRARY
+	return null
 
-func _load_json(path: String) -> Array[Dictionary]:
+func _load_json(path: String) -> CollectionLibrary:
 	var json := JSON.new()
 
 	var error := json.parse(FileAccess.get_file_as_string(path))
@@ -949,10 +904,10 @@ func _load_json(path: String) -> Array[Dictionary]:
 	if data is Array:
 		return _deserialize_library(data)
 
-	return NULL_LIBRARY
+	return null
 
 func load_library(path: String) -> void:
-	var library: Array[Dictionary] = []
+	var library: CollectionLibrary = null
 
 	if FileAccess.file_exists(path):
 		var extension: String = path.get_extension()
@@ -963,12 +918,12 @@ func load_library(path: String) -> void:
 		elif extension == "json":
 			library = _load_json(path)
 
-	# Check for “null” value.
-	if library.is_read_only():
+	if not is_instance_valid(library):
 		return
 
+	library.set_path(path)
 	set_current_library(library)
-	set_current_library_path(path)
+	set_project_setting(PROJECT_SETTING_CURRENT_LIBRARY_PATH, path)
 
 
 func _calculate_node_rect(node: Node) -> Rect2:
@@ -1105,11 +1060,11 @@ func handle_file_moved(old_file: String, new_file: String) -> void:
 	if not _thumbnails.has(ResourceLoader.get_resource_uid(new_file)):
 		return
 
-	for collection: Dictionary in _curr_lib:
-		for asset: Dictionary in collection.assets:
-			if asset.path == old_file:
-				asset.path = new_file
-				break
+	# TODO: Следует переместить логику в CollectionLibrary.
+	for collection: AssetCollection in _curr_lib.get_collections():
+		var asset: Asset = collection.find_asset_by_path(old_file)
+		if is_instance_valid(asset):
+			asset.set_path(new_file)
 
 	collection_changed.emit()
 
@@ -1119,16 +1074,9 @@ func handle_file_removed(file: String) -> void:
 	# Because we can't use UID for deleted files.
 	# And we have to go through all collections and assets.
 	var removed: int = 0
-	for collection: Dictionary in _curr_lib:
-		var assets: Array[Dictionary] = collection.assets
-
-		for i: int in assets.size():
-			if assets[i].path != file:
-				continue
-
-			assets.remove_at(i)
+	for collection: AssetCollection in _curr_lib.get_collections():
+		if collection.erase_asset_by_path(file):
 			removed += 1
-			break
 
 	if removed:
 		collection_changed.emit()
@@ -1145,7 +1093,7 @@ func _on_collection_tab_close_pressed(tab: int) -> void:
 
 
 func _on_collection_tab_rmb_clicked(tab: int) -> void:
-	var collection: Dictionary = _collec_tab_bar.get_tab_metadata(tab)
+	var collection: AssetCollection = _collec_tab_bar.get_tab_metadata(tab)
 	if is_instance_valid(_collec_context_menu):
 		_collec_context_menu.queue_free()
 
@@ -1179,7 +1127,7 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 
 				var line_edit := LineEdit.new()
 				line_edit.set_select_all_on_focus(true)
-				line_edit.set_text(collection.name)
+				line_edit.set_text(collection.get_name())
 				_rename_collec_window.register_text_enter(line_edit)
 
 				# INFO: Disables the ability to create a collection and set a tooltip.
@@ -1201,9 +1149,8 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 				vbox.add_child(line_edit)
 
 				_rename_collec_window.confirmed.connect(func() -> void:
-					collection.name = line_edit.get_text()
+					collection.set_name(line_edit.get_text())
 					_collec_tab_bar.set_tab_title(tab, line_edit.get_text())
-					mark_unsaved()
 				)
 
 				self.add_child(_rename_collec_window)
@@ -1214,21 +1161,20 @@ func _on_collection_tab_rmb_clicked(tab: int) -> void:
 		)
 	self.add_child(_collec_context_menu)
 
-	if collection.is_read_only(): # If "null" collection.
-		# BUG: You can't see it because the tab is disabled.
-		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
-	else:
+	if is_instance_valid(collection):
 		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
 		_collec_context_menu.add_separator()
 		_collec_context_menu.add_item("Rename Collection", CollectionTabMenu.RENAME)
 		_collec_context_menu.add_item("Delete Collection", CollectionTabMenu.DELETE)
+	else:
+		_collec_context_menu.add_item("New Collection", CollectionTabMenu.NEW)
 
 	_collec_context_menu.popup(Rect2i(get_screen_position() + get_local_mouse_position(), Vector2i.ZERO))
 
 
+# FIXME: Требуется новая имплементация.
 func _on_collection_tab_rearranged(_to_idx: int) -> void:
-	for i: int in _collec_tab_bar.get_tab_count():
-		_curr_lib[i] = _collec_tab_bar.get_tab_metadata(i)
+	pass
 
 
 func _create_file_dialog(open: bool) -> ConfirmationDialog:
@@ -1260,16 +1206,13 @@ func _on_collection_option_id_pressed(option: LibraryMenu) -> void:
 	match option:
 		# TODO: Add a feature to check if the current library is saved.
 		LibraryMenu.NEW:
-			var new_library: Array[Dictionary] = []
-			set_current_library(new_library)
-
-			_curr_lib_path = ""
+			set_current_library(CollectionLibrary.new())
 
 		LibraryMenu.OPEN:
 			_popup_file_dialog(_open_dialog)
 
-		LibraryMenu.SAVE when not _curr_lib_path.is_empty():
-			save_library(_curr_lib_path)
+		LibraryMenu.SAVE when _curr_lib.get_path():
+			save_library(_curr_lib.get_path())
 
 		LibraryMenu.SAVE, LibraryMenu.SAVE_AS:
 			_popup_file_dialog(_save_dialog)
@@ -1306,8 +1249,8 @@ func _update_asset_display_mode(display_mode: DisplayMode) -> void:
 		_mode_list_btn.set_pressed_no_signal(true)
 
 	for i: int in _item_list.get_item_count():
-		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(i)
-		_item_list.set_item_icon(i, asset.thumb)
+		var asset: Asset = _item_list.get_item_metadata(i)
+		_item_list.set_item_icon(i, asset.get_thumbnail())
 
 	_update_thumb_icon_size(display_mode)
 
@@ -1370,38 +1313,37 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 	_item_context_menu = PopupMenu.new()
 	_item_context_menu.id_pressed.connect(func(option: AssetContextMenu) -> void:
-		var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(selected_assets[0])
+		var asset: Asset = _item_list.get_item_metadata(selected_assets[0])
 
 		match option:
 			AssetContextMenu.OPEN_ASSET:
-				open_asset_request.emit(asset.path)
+				open_asset_request.emit(asset.get_path())
 			AssetContextMenu.INHERIT_ASSET:
-				inherit_asset_request.emit(asset.path)
+				inherit_asset_request.emit(asset.get_path())
 			AssetContextMenu.COPY_PATH:
-				DisplayServer.clipboard_set(asset.path)
+				DisplayServer.clipboard_set(asset.get_path())
 			AssetContextMenu.COPY_UID:
-				DisplayServer.clipboard_set(asset.uid)
+				DisplayServer.clipboard_set(asset.get_uid())
+			# BUG: If we first perform an asset search and then delete them,
+			# the assets will be deleted with incorrect indices.
 			AssetContextMenu.DELETE_ASSET:
-				var assets: Array[Dictionary] = _curr_collec.assets
-
 				if selected_assets.size() == 1:
-					assets.remove_at(selected_assets[0])
+					_curr_collec.remove_asset(selected_assets[0])
 				else:
 					selected_assets.reverse()
 
 					for i: int in selected_assets:
-						assets.remove_at(i)
+						_curr_collec.remove_asset(i)
 
 				collection_changed.emit()
-				mark_unsaved()
 			AssetContextMenu.SHOW_IN_FILE_SYSTEM:
-				show_in_file_system_request.emit(asset.path)
+				show_in_file_system_request.emit(asset.get_path())
 			AssetContextMenu.SHOW_IN_FILE_MANAGER:
-				show_in_file_manager_request.emit(asset.path)
+				show_in_file_manager_request.emit(asset.get_path())
 			AssetContextMenu.REFRESH:
 				for i: int in selected_assets:
 					asset = _item_list.get_item_metadata(i)
-					_queue_update_thumbnail(asset.id)
+					_queue_update_thumbnail(asset.get_id())
 		)
 	self.add_child(_item_context_menu)
 
@@ -1435,15 +1377,15 @@ func _on_item_list_item_clicked(index: int, at_position: Vector2, mouse_button_i
 
 
 func _on_item_list_item_activated(index: int) -> void:
-	var asset: Dictionary[StringName, Variant] = _item_list.get_item_metadata(index)
-	open_asset_request.emit(asset.path)
+	var asset: Asset = _item_list.get_item_metadata(index)
+	open_asset_request.emit(asset.get_path())
 
 
 func _on_save_timer_timeout() -> void:
-	if _curr_lib_path.is_empty():
+	if not is_instance_valid(_curr_lib) or _curr_lib.get_path().is_empty():
 		return
 
-	save_library(_curr_lib_path)
+	save_library(_curr_lib.get_path())
 
 
 
@@ -1490,8 +1432,8 @@ class AssetItemList extends ItemList:
 
 		var files := PackedStringArray()
 		for i: int in get_selected_items():
-			var asset: Dictionary[StringName, Variant] = get_item_metadata(i)
-			files.push_back(asset.path)
+			var asset: Asset = get_item_metadata(i)
+			files.push_back(asset.get_path())
 
 		set_drag_preview(_create_drag_preview(files))
 
@@ -1502,8 +1444,8 @@ class AssetItemList extends ItemList:
 		if item < 0:
 			return null
 
-		var asset: Dictionary[StringName, Variant] = get_item_metadata(item)
-		if asset.is_empty():
+		var asset: Asset = get_item_metadata(item)
+		if not is_instance_valid(asset):
 			return null
 
 		var vbox := VBoxContainer.new()
@@ -1513,11 +1455,11 @@ class AssetItemList extends ItemList:
 		thumb_rect.set_h_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_v_size_flags(Control.SIZE_SHRINK_CENTER)
 		thumb_rect.set_custom_minimum_size(Vector2(THUMB_GRID_SIZE, THUMB_GRID_SIZE))
-		thumb_rect.set_texture(asset.thumb)
+		thumb_rect.set_texture(asset.get_thumbnail())
 		vbox.add_child(thumb_rect)
 
 		var label := Label.new()
-		label.set_text(asset.path)
+		label.set_text(asset.get_path())
 		vbox.add_child(label)
 
 		return vbox
