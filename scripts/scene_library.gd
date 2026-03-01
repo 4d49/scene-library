@@ -67,6 +67,8 @@ const PROJECT_SETTING_CURRENT_LIBRARY_PATH: String = "addons/scene_library/libra
 
 const THUMB_GRID_SIZE: int = 192
 const THUMB_LIST_SIZE: int = 48
+const DEFAULT_THUMB_GRID_SIZE: int = 64
+const DEFAULT_THUMB_LIST_SIZE: int = 16
 
 
 var _main_vbox: VBoxContainer = null
@@ -99,8 +101,8 @@ var _remove_collec_dialog: ConfirmationDialog = null
 
 var _save_timer: Timer = null
 
-var _thumb_grid_icon_size: int = 64
-var _thumb_list_icon_size: int = 16
+var _thumb_grid_icon_size: int = DEFAULT_THUMB_GRID_SIZE
+var _thumb_list_icon_size: int = DEFAULT_THUMB_LIST_SIZE
 
 # INFO: May be required for debugging.
 var _cache_enabled: bool = true
@@ -148,8 +150,8 @@ func _ready() -> void:
 
 	_asset_display_mode = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_MODE, DisplayMode.THUMBNAILS)
 
-	_thumb_grid_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_GRID_SIZE, 64)
-	_thumb_list_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_LIST_SIZE, 16)
+	_thumb_grid_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_GRID_SIZE, DEFAULT_THUMB_GRID_SIZE)
+	_thumb_list_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_LIST_SIZE, DEFAULT_THUMB_LIST_SIZE)
 
 	_sort_mode = get_or_create_editor_setting(EDITOR_SETTING_SORT_MODE, SortMode.NAME)
 
@@ -1278,11 +1280,24 @@ func _set_thumb_list_icon_size(icon_size: int) -> void:
 	_update_thumb_icon_size(_asset_display_mode)
 
 
-func _on_item_list_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.is_pressed() and event.is_command_or_control_pressed():
-		const ICON_GRID_STEP = 8
-		const ICON_LIST_STEP = 4
+func _notification(what: int) -> void:
+	match what:
+		EditorSettings.NOTIFICATION_EDITOR_SETTINGS_CHANGED:
+			var new_thumb_grid_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_GRID_SIZE, DEFAULT_THUMB_GRID_SIZE)
+			
+			if new_thumb_grid_icon_size != _thumb_grid_icon_size:
+				_set_thumb_grid_icon_size(new_thumb_grid_icon_size)
+			
+			var new_thumb_list_icon_size = get_or_create_editor_setting(EDITOR_SETTING_THUMBNAIL_LIST_SIZE, DEFAULT_THUMB_LIST_SIZE)
+			
+			if new_thumb_list_icon_size != _thumb_list_icon_size:
+				_set_thumb_list_icon_size(new_thumb_list_icon_size)
 
+func _on_item_list_gui_input(event: InputEvent) -> void:
+	const ICON_GRID_STEP = 8
+	const ICON_LIST_STEP = 4
+	
+	if event is InputEventMouseButton and event.is_pressed() and event.is_command_or_control_pressed():
 		match event.get_button_index():
 			MOUSE_BUTTON_WHEEL_UP:
 				if _asset_display_mode == DisplayMode.THUMBNAILS:
@@ -1298,6 +1313,16 @@ func _on_item_list_gui_input(event: InputEvent) -> void:
 
 			_:
 				return
+
+		accept_event()
+	
+	if event is InputEventPanGesture and event.is_command_or_control_pressed():
+		var delta := (event as InputEventPanGesture).delta
+		
+		if _asset_display_mode == DisplayMode.THUMBNAILS:
+			_set_thumb_grid_icon_size(_thumb_grid_icon_size + ICON_GRID_STEP * delta.y)
+		else:
+			_set_thumb_list_icon_size(_thumb_list_icon_size + ICON_LIST_STEP * delta.y)
 
 		accept_event()
 
