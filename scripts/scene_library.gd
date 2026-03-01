@@ -1294,10 +1294,10 @@ func _notification(what: int) -> void:
 				_set_thumb_list_icon_size(new_thumb_list_icon_size)
 
 func _on_item_list_gui_input(event: InputEvent) -> void:
+	const ICON_GRID_STEP = 8
+	const ICON_LIST_STEP = 4
+	
 	if event is InputEventMouseButton and event.is_pressed() and event.is_command_or_control_pressed():
-		const ICON_GRID_STEP = 8
-		const ICON_LIST_STEP = 4
-
 		match event.get_button_index():
 			MOUSE_BUTTON_WHEEL_UP:
 				if _asset_display_mode == DisplayMode.THUMBNAILS:
@@ -1313,6 +1313,16 @@ func _on_item_list_gui_input(event: InputEvent) -> void:
 
 			_:
 				return
+
+		accept_event()
+	
+	if event is InputEventPanGesture and event.is_command_or_control_pressed():
+		var delta := (event as InputEventPanGesture).delta
+		
+		if _asset_display_mode == DisplayMode.THUMBNAILS:
+			_set_thumb_grid_icon_size(_thumb_grid_icon_size + ICON_GRID_STEP * delta.y)
+		else:
+			_set_thumb_list_icon_size(_thumb_list_icon_size + ICON_LIST_STEP * delta.y)
 
 		accept_event()
 
